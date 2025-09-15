@@ -1,0 +1,7 @@
+langchain
+langchain-openai
+langchain-chroma
+langchain-community
+pillow
+streamlit
+pysqlite3-binary; sys_platform == 'linux' # not tested yet or  sys_platform == 'darwin'

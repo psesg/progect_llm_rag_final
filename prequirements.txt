@@ -1,0 +1,10 @@
+unstructured
+unstructured_inference
+unstructured-pytesseract
+langchain
+langchain_openai
+pillow
+pdfminer.six
+pillow-heif
+pi_heif
+pdf2image
