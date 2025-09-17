@@ -260,7 +260,7 @@ with open(tables_pkl, 'wb') as outp:
 print(f"разбиваем объединенный текст на чанки")
 # Создаем объект CharacterTextSplitter для разбиения текста на части (чанки)
 text_splitter = CharacterTextSplitter.from_tiktoken_encoder(
-    chunk_size=1200,    # Максимальный размер чанка в символах
+    chunk_size=1000,    # Максимальный размер чанка в символах
     chunk_overlap=150   # Количество перекрывающихся символов между чанками
 )
 
