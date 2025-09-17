@@ -16,7 +16,7 @@ warnings.filterwarnings('ignore')
 
 # пути к файлам
 # debug code on alternativnye-istochniki-energii.pdf work real on Sber2023.pdf
-report_path = "source_pdf_report/alternativnye-istochniki-energii.pdf"
+report_path = "source_pdf_report/Sber2023.pdf"
 image_block_output_dir = "./extracted_images"
 raw_pdf_elements_pkl = "./pickles/raw_pdf_elements_pkl.pkl"
 texts_pkl = "./pickles/texts_pkl.pkl"
@@ -101,13 +101,11 @@ def generate_text_summaries(texts, tables, summarize_texts=False):
     prompt_text = [
         ("system", "Ты — специалист по саммаризации - созданию кратких и содержательных резюме текста."),
         ("human", """Создай краткое, логичное и ясное по смыслу резюме из текста, следующего за ключевым словом [КОНТЕКСТ].
-
             Выполняй основные требования к резюме:
             - кратко выделять основные идеи, ключевые мысли;
             - избегать вывода избыточной информации и малоизвестной терминологии, жаргонных слов и аббревиатур;
             - смысл резюме должен быть понятен без исходного текста;
             - не начинай вывод резюме со слова [резюме]
-
             [КОНТЕКСТ]: {element}
         """),
     ]
@@ -205,7 +203,6 @@ def generate_img_summaries(path):
         - опиши основные компоненты, предметы, их взаимное расположение цвета, формы и фон;
         - если на изображении или картинке содержится человек или несколько людей, то опиши их количество, пол, возраст, одежду;
         - если на изображении содержится только фон или мало графического контента, то просто сделай вывод о малоинформативном контенте;
-        - смысл описания должен быть понятен без рассматривания исходного изображения.
     """
     # Обрабатываем все файлы в указанной директории
     list_files = os.listdir(path)
@@ -377,7 +374,7 @@ else:
         image_summaries = pickle.load(inp)
 
 # печать сэмплов данных
-n_saples=1
+n_saples=10
 if len(texts) > 0:
         print(f"\tlen(texts)={len(texts)}")
         print("\t", end="")
