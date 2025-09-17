@@ -21,7 +21,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.output_parsers import StrOutputParser
 import streamlit as st
 
-if platform.system() == "Linux" or platform.system() == "Darwin":
+if platform.system() == "Linux": # or platform.system() == "Darwin"
     # next lines for fix streamlit: Your system has an unsupported version of sqlite3.
     # Chroma requires sqlite3 >= 3.35.0 in cloud streamlit.app
     __import__('pysqlite3')
@@ -205,6 +205,7 @@ def split_image_text_types(docs):
             b64_images.append(doc)
         else:
             texts.append(doc)
+    print (f"len(texts)= {len(texts)}\nlen(b64_images)= {len(b64_images)}\n")
     return {"images": b64_images, "texts": texts}
 
 
