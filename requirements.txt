@@ -1,7 +1,7 @@
-langchain
-langchain-openai
-langchain-chroma
-langchain-community
-pillow
-streamlit
+langchain==0.3.27
+langchain-openai==0.3.33
+langchain-chroma==0.2.6
+langchain-community==0.3.29
+pillow==11.3.0
+streamlit==1.49.1
 pysqlite3-binary; sys_platform == 'linux' # not tested yet or  sys_platform == 'darwin'
