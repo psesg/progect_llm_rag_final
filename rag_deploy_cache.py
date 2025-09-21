@@ -206,7 +206,7 @@ def split_image_text_types(docs):
         else:
             texts.append(doc)
     print (f"len(texts)= {len(texts)}\nlen(b64_images)= {len(b64_images)}\n")
-    print(texts)
+    # print(texts)
     return {"images": b64_images, "texts": texts}
 
 
