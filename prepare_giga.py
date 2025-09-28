@@ -96,7 +96,10 @@ def mode_file(file, mode=False):
 # пути к файлам
 # debug code on alternativnye-istochniki-energii.pdf work real on Sber2023.pdf
 report_path = "source_pdf_report/alt.pdf" #Sber2023.pdf
-image_block_output_dir = "./extracted_images"
+if giga:
+    image_block_output_dir = "./giga_extracted_images"
+else:
+    image_block_output_dir = "./extracted_images"
 raw_pdf_elements_pkl = mode_file("./pickles/raw_pdf_elements_pkl.pkl", giga)
 print(raw_pdf_elements_pkl)
 texts_pkl = mode_file("./pickles/texts_pkl.pkl", giga)
@@ -274,9 +277,10 @@ def image_summarize(img_base64, prompt, img_path):
                         auth_url=url_tok,
                         temperature=0)
         file = chat.upload_file(open(img_path, "rb"),"general")
-        print(f'uploaded file {file.filename} that got id = {file.id_}')
+        print(f'\t\tuploaded file: {file.filename} got id = {file.id_}')
         time.sleep(5)  # Sleep for 5 seconds
         # Возвращаем содержимое ответа от модели
+        print(f'\t\tdescribing image file: {file.filename}')
         msg = chat.invoke(
             [
                 HumanMessage(
@@ -287,9 +291,9 @@ def image_summarize(img_base64, prompt, img_path):
                 )
             ]
         )
-        url = f"https://gigachat.devices.sberbank.ru/api/v1/files:{str(file.id_)}/delete"
+        url = f"https://gigachat.devices.sberbank.ru/api/v1/files/{file.id_}/delete"
         response = requests.request("POST", url, headers=headers, data=payload, verify=False, cert=False)
-        print(f'about file: {file.filename} - {response.text}')
+        print(f'\t\tdelete file {file.filename}: {response.text}')
 
         return msg.content
 
