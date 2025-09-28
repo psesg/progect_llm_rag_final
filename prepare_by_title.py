@@ -15,7 +15,7 @@ import warnings
 warnings.filterwarnings('ignore')
 
 # пути к файлам
-# debug code on alternativnye-istochniki-energii.pdf work real on Sber2023.pdf
+# debug code on alt_sources_energy.pdf work real on Sber2023.pdf
 report_path = "source_pdf_report/Sber2023.pdf"
 image_block_output_dir = "./extracted_images"
 raw_pdf_elements_pkl = "./pickles/raw_pdf_elements_pkl.pkl"

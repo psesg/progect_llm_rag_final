@@ -18,13 +18,13 @@ import requests
 import json
 
 if not sys.warnoptions:
-    import warnings
     warnings.simplefilter("ignore") # default Change the filter in this process
     os.environ["PYTHONWARNINGS"] = "ignore" # ignore Also affect subprocesses
-# warnings.filterwarnings('ignore', category=DeprecationWarning)
+
+warnings.filterwarnings('ignore', category=DeprecationWarning)
 
 giga = True
-
+model_giga = "GigaChat-2-Pro"
 if giga:
     max_concurrency_workers = 1
 
@@ -94,8 +94,8 @@ def mode_file(file, mode=False):
     return file
 
 # пути к файлам
-# debug code on alternativnye-istochniki-energii.pdf work real on Sber2023.pdf
-report_path = "source_pdf_report/alt.pdf" #Sber2023.pdf
+# debug code on alt_sources_energy.pdf work real on Sber2023.pdf
+report_path = "source_pdf_report/alt_sources_energy.pdf" #Sber2023.pdf
 if giga:
     image_block_output_dir = "./giga_extracted_images"
 else:
@@ -209,7 +209,7 @@ def generate_text_summaries(texts, tables, summarize_texts=False):
     # Создаем модель для генерации суммаризаций. Устанавливаем температуру 0 для детерминированных ответов.
     if giga:
         # Авторизация в сервисе GigaChat
-        model = GigaChat(model="GigaChat-2-Pro",
+        model = GigaChat(model=model_giga,
                         credentials=credentials,
                         verify_ssl_certs=False,
                         scope="GIGACHAT_API_CORP",
@@ -270,7 +270,7 @@ def image_summarize(img_base64, prompt, img_path):
     # Создаем объект модели GPT с заданными параметрами
     if giga:
         # Авторизация в сервисе GigaChat
-        chat = GigaChat(model="GigaChat-2-Pro",
+        chat = GigaChat(model=model_giga,
                         credentials=credentials,
                         verify_ssl_certs=False,
                         scope="GIGACHAT_API_CORP",

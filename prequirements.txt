@@ -9,5 +9,7 @@ pillow-heif
 pi_heif
 pdf2image
 onnx==1.16.1; sys_platform == 'win32'
+onnxruntime==1.20.0; sys_platform == 'win32'
 hf-xet==1.1.10; sys_platform == 'win32'
 requests==2.32.3
+langchain-gigachat==0.3.12
