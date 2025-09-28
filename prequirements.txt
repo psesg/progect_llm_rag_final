@@ -8,3 +8,5 @@ pdfminer.six
 pillow-heif
 pi_heif
 pdf2image
+onnx==1.16.1; sys_platform == 'win32'
+hf-xet==1.1.10; sys_platform == 'win32'
