@@ -7,19 +7,83 @@ from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage
 from langchain_core.output_parsers import StrOutputParser
 from PIL import Image as pil_image
+import sys
 import os
 import pickle
 import base64
 import warnings
 from langchain_gigachat.chat_models import GigaChat
 import time
+import requests
+import json
 
-warnings.filterwarnings('ignore', category=DeprecationWarning)
+if not sys.warnoptions:
+    import warnings
+    warnings.simplefilter("ignore") # default Change the filter in this process
+    os.environ["PYTHONWARNINGS"] = "ignore" # ignore Also affect subprocesses
+# warnings.filterwarnings('ignore', category=DeprecationWarning)
 
 giga = True
 
 if giga:
     max_concurrency_workers = 1
+
+    # get credentials from переменной окружения `GIGACHAT_CREDENTIALS`
+    credentials = ''
+    try:
+        credentials = os.environ['GIGACHAT_CREDENTIALS']
+    except KeyError:
+        print("OS variable: GIGACHAT_CREDENTIALS not set")
+        exit(1)
+    else:
+        print(f"OS variable: GIGACHAT_CREDENTIALS set to:\n<{credentials}>")
+
+    # get list models
+    urlm = "https://gigachat.devices.sberbank.ru/api/v1/models"
+    url_tok = "https://ngw.devices.sberbank.ru:9443/api/v2/oauth"
+
+    if os.path.exists('tk.txt'):
+        ftk = open('tk.txt', 't+r', encoding='utf-8')
+        tk = ftk.readline().strip('\n')
+        ftk.close()
+    else:
+        tk = ''
+
+    payload = {}
+    headers = {
+        'Accept': 'application/json',
+        'Authorization': f'Bearer {tk}'
+    }
+    response = requests.request("GET", urlm, headers=headers, data=payload,
+                                verify=False, cert=False)
+    # list models
+    print(response.text)
+    if (response.status_code == 401 and
+            (json.loads(response.text).get('message') == 'Token has expired') or
+            (json.loads(response.text).get('message') == 'Unauthorized')):
+        print('will update token...')
+        payload_tok = {
+            'scope': 'GIGACHAT_API_CORP'
+        }
+        headers_tok = {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Accept': 'application/json',
+            'RqUID': '1aa07e53-26a5-46e5-bdc5-34238c732bda',
+            'Authorization': f'Basic {credentials}'
+        }
+        response = requests.request("POST", url_tok, headers=headers_tok, data=payload_tok, verify=False, cert=False)
+        print('got new token:')
+        tk = json.loads(response.text).get('access_token')
+        print(f'access_token:{tk}')
+        ftk = open('tk.txt', 't+w', encoding='utf-8')
+        if tk is not None:
+            ftk.writelines([tk])
+        ftk.close()
+
+    headers = {
+        'Accept': 'application/json',
+        'Authorization': f'Bearer {tk}'
+    }
 else:
     max_concurrency_workers = 5
 
@@ -50,17 +114,6 @@ print(img_base64_list_pkl)
 image_summaries_pkl = mode_file("./pickles/image_summaries_pkl.pkl", giga)
 print(image_summaries_pkl)
 
-# get credentials from переменной окружения `GIGACHAT_CREDENTIALS`
-credentials = ''
-try:
-    credentials = os.environ['GIGACHAT_CREDENTIALS']
-except KeyError:
-    print("OS variable: GIGACHAT_CREDENTIALS not set")
-    exit(1)
-else:
-    print(f"OS variable: GIGACHAT_CREDENTIALS set to:\n<{credentials}>")
-
-url_tok = "https://ngw.devices.sberbank.ru:9443/api/v2/oauth"
 ########################################################################################################################
 # определение необходимых для предобработки PDF файла функций
 ########################################################################################################################
@@ -234,6 +287,9 @@ def image_summarize(img_base64, prompt, img_path):
                 )
             ]
         )
+        url = f"https://gigachat.devices.sberbank.ru/api/v1/files:{str(file.id_)}/delete"
+        response = requests.request("POST", url, headers=headers, data=payload, verify=False, cert=False)
+        print(f'about file: {file.filename} - {response.text}')
 
         return msg.content
 
