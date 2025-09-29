@@ -24,7 +24,14 @@ if not sys.warnoptions:
 warnings.filterwarnings('ignore', category=DeprecationWarning)
 
 giga = True
-model_giga = "GigaChat-2-Pro"
+model_giga = "GigaChat-2-Max" # "GigaChat-2-Pro"
+# GigaChat-2-Max
+# GigaChat-Max
+# GigaChat-Pro
+# GigaChat-Plus
+# GigaChat-2-Reasoning
+# GigaChat-2
+# GigaChat
 if giga:
     max_concurrency_workers = 1
 
@@ -95,7 +102,7 @@ def mode_file(file, mode=False):
 
 # пути к файлам
 # debug code on alt_sources_energy.pdf work real on Sber2023.pdf
-report_path = "source_pdf_report/alt_sources_energy.pdf" #Sber2023.pdf
+report_path = "source_pdf_report/Sber2023.pdf" #Sber2023.pdf alt_sources_energy.pdf
 if giga:
     image_block_output_dir = "./giga_extracted_images"
 else:
