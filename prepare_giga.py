@@ -16,6 +16,13 @@ from langchain_gigachat.chat_models import GigaChat
 import time
 import requests
 import json
+import logging
+from giga_util import get_giga_credentials, get_giga_url_access_mode, get_giga_token_access
+
+
+# set logging level - for logging to file add: filename='myapp.log',
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 if not sys.warnoptions:
     warnings.simplefilter("ignore") # default Change the filter in this process
@@ -35,62 +42,20 @@ model_giga = "GigaChat-2-Max" # "GigaChat-2-Pro"
 if giga:
     max_concurrency_workers = 1
 
-    # get credentials from переменной окружения `GIGACHAT_CREDENTIALS`
-    credentials = ''
-    try:
-        credentials = os.environ['GIGACHAT_CREDENTIALS']
-    except KeyError:
-        print("OS variable: GIGACHAT_CREDENTIALS not set")
+    credentials = get_giga_credentials()
+    if credentials == '':
         exit(1)
-    else:
-        print(f"OS variable: GIGACHAT_CREDENTIALS set to:\n<{credentials}>")
-
-    # get list models
-    urlm = "https://gigachat.devices.sberbank.ru/api/v1/models"
-    url_tok = "https://ngw.devices.sberbank.ru:9443/api/v2/oauth"
-
-    if os.path.exists('tk.txt'):
-        ftk = open('tk.txt', 't+r', encoding='utf-8')
-        tk = ftk.readline().strip('\n')
-        ftk.close()
-    else:
-        tk = ''
-
-    payload = {}
-    headers = {
-        'Accept': 'application/json',
-        'Authorization': f'Bearer {tk}'
-    }
-    response = requests.request("GET", urlm, headers=headers, data=payload,
-                                verify=False, cert=False)
-    # list models
-    print(response.text)
-    if (response.status_code == 401 and
-            (json.loads(response.text).get('message') == 'Token has expired') or
-            (json.loads(response.text).get('message') == 'Unauthorized')):
-        print('will update token...')
-        payload_tok = {
-            'scope': 'GIGACHAT_API_CORP'
-        }
-        headers_tok = {
-            'Content-Type': 'application/x-www-form-urlencoded',
+    # get url_oauth and access_mode
+    url_oauth, access_mode = get_giga_url_access_mode()
+    rc, tk = get_giga_token_access(url_oauth, credentials)
+    if rc:
+        payload = {}
+        headers = {
             'Accept': 'application/json',
-            'RqUID': '1aa07e53-26a5-46e5-bdc5-34238c732bda',
-            'Authorization': f'Basic {credentials}'
+            'Authorization': f'Bearer {tk}'
         }
-        response = requests.request("POST", url_tok, headers=headers_tok, data=payload_tok, verify=False, cert=False)
-        print('got new token:')
-        tk = json.loads(response.text).get('access_token')
-        print(f'access_token:{tk}')
-        ftk = open('tk.txt', 't+w', encoding='utf-8')
-        if tk is not None:
-            ftk.writelines([tk])
-        ftk.close()
-
-    headers = {
-        'Accept': 'application/json',
-        'Authorization': f'Bearer {tk}'
-    }
+    else:
+        exit(1)
 else:
     max_concurrency_workers = 5
 
@@ -102,7 +67,7 @@ def mode_file(file, mode=False):
 
 # пути к файлам
 # debug code on alt_sources_energy.pdf work real on Sber2023.pdf
-report_path = "source_pdf_report/Sber2023.pdf" #Sber2023.pdf alt_sources_energy.pdf
+report_path = "source_pdf_report/alt_sources_energy.pdf" #Sber2023.pdf alt_sources_energy.pdf
 if giga:
     image_block_output_dir = "./giga_extracted_images"
 else:
@@ -220,7 +185,7 @@ def generate_text_summaries(texts, tables, summarize_texts=False):
                         credentials=credentials,
                         verify_ssl_certs=False,
                         scope="GIGACHAT_API_CORP",
-                        auth_url=url_tok,
+                        auth_url=url_oauth,
                         temperature=0)
     else:
         model = ChatOpenAI(temperature=0, model="gpt-4o") # OpenAI API ключ в os.environ["OPENAI_API_KEY"]
@@ -239,11 +204,12 @@ def generate_text_summaries(texts, tables, summarize_texts=False):
     elif texts:
         # Если суммирование не требуется, просто передаем исходные тексты
         text_summaries = texts
-
+    logger.info(f'\t\ttexts: <{texts}>\ntexts summaries: [{text_summaries}]')
     # Если есть таблицы, выполняем их суммирование
     if tables:
         # Выполняем параллельное суммирование таблиц
         table_summaries = summarize_chain.batch(tables, {"max_concurrency":max_concurrency_workers })
+        logger.info(f'\t\ttables: <{tables}>\ntables summaries: [{table_summaries}]')
 
     return text_summaries, table_summaries  # Возвращаем результаты суммаризации
 
@@ -281,7 +247,7 @@ def image_summarize(img_base64, prompt, img_path):
                         credentials=credentials,
                         verify_ssl_certs=False,
                         scope="GIGACHAT_API_CORP",
-                        auth_url=url_tok,
+                        auth_url=url_oauth,
                         temperature=0)
         file = chat.upload_file(open(img_path, "rb"),"general")
         print(f'\t\tuploaded file: {file.filename} got id = {file.id_}')
@@ -298,10 +264,11 @@ def image_summarize(img_base64, prompt, img_path):
                 )
             ]
         )
+        logger.info(f'\t\timage file: <{file.filename}> describe: [{msg.content}]')
         url = f"https://gigachat.devices.sberbank.ru/api/v1/files/{file.id_}/delete"
         response = requests.request("POST", url, headers=headers, data=payload, verify=False, cert=False)
-        print(f'\t\tdelete file {file.filename}: {response.text}')
-
+        # print(f'\t\tdelete file {file.filename}: {response.status_code}')
+        logger.info(f'\t\tdelete file {file.filename}: status_code: {response.status_code}')
         return msg.content
 
     else:
