@@ -15,14 +15,12 @@ import warnings
 from langchain_gigachat.chat_models import GigaChat
 import time
 import requests
-import json
 import logging
-from giga_util import get_giga_credentials, get_giga_url_access_mode, get_giga_token_access
 
 
 # set logging level - for logging to file add: filename='myapp.log',
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format='\t\t%(asctime)s - %(levelname)s - %(message)s')
 
 if not sys.warnoptions:
     warnings.simplefilter("ignore") # default Change the filter in this process
@@ -30,6 +28,7 @@ if not sys.warnoptions:
 
 warnings.filterwarnings('ignore', category=DeprecationWarning)
 
+print(f"получение параметров подключения к GigaChat")
 giga = True
 model_giga = "GigaChat-2-Max" # "GigaChat-2-Pro"
 # GigaChat-2-Max
@@ -40,10 +39,12 @@ model_giga = "GigaChat-2-Max" # "GigaChat-2-Pro"
 # GigaChat-2
 # GigaChat
 if giga:
+    from giga_util import get_giga_credentials, get_giga_url_access_mode, get_giga_token_access
     max_concurrency_workers = 1
 
     credentials = get_giga_credentials()
     if credentials == '':
+        logger.critical('OS variable: GIGACHAT_CREDENTIALS not set')
         exit(1)
     # get url_oauth and access_mode
     url_oauth, access_mode = get_giga_url_access_mode()
@@ -55,6 +56,7 @@ if giga:
             'Authorization': f'Bearer {tk}'
         }
     else:
+        logger.critical('Can''t get authorization token to GigaChat')
         exit(1)
 else:
     max_concurrency_workers = 5
@@ -66,28 +68,41 @@ def mode_file(file, mode=False):
     return file
 
 # пути к файлам
+print(f"настройка путей входных/выходных файлов")
 # debug code on alt_sources_energy.pdf work real on Sber2023.pdf
 report_path = "source_pdf_report/alt_sources_energy.pdf" #Sber2023.pdf alt_sources_energy.pdf
+print(f"\t\tвходной файл: {report_path}")
 if giga:
     image_block_output_dir = "./giga_extracted_images"
+    path_to_pkl = "./giga_pickles"
 else:
     image_block_output_dir = "./extracted_images"
-raw_pdf_elements_pkl = mode_file("./pickles/raw_pdf_elements_pkl.pkl", giga)
-print(raw_pdf_elements_pkl)
-texts_pkl = mode_file("./pickles/texts_pkl.pkl", giga)
-print(texts_pkl)
-tables_pkl = mode_file("./pickles/tables_pkl.pkl", giga)
-print(tables_pkl)
-texts_4k_token_pkl = mode_file("./pickles/texts_4k_token_pkl.pkl", giga)
-print(texts_4k_token_pkl)
-text_summaries_pkl = mode_file("./pickles/text_summaries_pkl.pkl", giga)
-print(text_summaries_pkl)
-table_summaries_pkl = mode_file("./pickles/table_summaries_pkl.pkl", giga)
-print(table_summaries_pkl)
-img_base64_list_pkl = mode_file("./pickles/img_base64_list.pkl", giga)
-print(img_base64_list_pkl)
-image_summaries_pkl = mode_file("./pickles/image_summaries_pkl.pkl", giga)
-print(image_summaries_pkl)
+    path_to_pkl = "./pickles"
+print(f"\t\tпуть к файлам извлеченных изображений: {image_block_output_dir}")
+print(f"\t\tвыходные PKL файлы")
+raw_pdf_elements_pkl = os.path.join(path_to_pkl,"raw_pdf_elements_pkl.pkl")
+print(f"\t\t\t{raw_pdf_elements_pkl}")
+
+texts_pkl = os.path.join(path_to_pkl,"texts_pkl.pkl")
+print(f"\t\t\t{texts_pkl}")
+
+tables_pkl = os.path.join(path_to_pkl,"tables_pkl.pkl")
+print(f"\t\t\t{tables_pkl}")
+
+texts_4k_token_pkl = os.path.join(path_to_pkl,"texts_4k_token_pkl.pkl")
+print(f"\t\t\t{texts_4k_token_pkl}")
+
+text_summaries_pkl = os.path.join(path_to_pkl,"text_summaries_pkl.pkl")
+print(f"\t\t\t{text_summaries_pkl}")
+
+table_summaries_pkl = os.path.join(path_to_pkl,"table_summaries_pkl.pkl")
+print(f"\t\t\t{table_summaries_pkl}")
+
+img_base64_list_pkl = os.path.join(path_to_pkl,"img_base64_list.pkl")
+print(f"\t\t\t{img_base64_list_pkl}")
+
+image_summaries_pkl = os.path.join(path_to_pkl,"image_summaries_pkl.pkl")
+print(f"\t\t\t{image_summaries_pkl}")
 
 ########################################################################################################################
 # определение необходимых для предобработки PDF файла функций
@@ -204,12 +219,12 @@ def generate_text_summaries(texts, tables, summarize_texts=False):
     elif texts:
         # Если суммирование не требуется, просто передаем исходные тексты
         text_summaries = texts
-    logger.info(f'\t\ttexts: <{texts}>\ntexts summaries: [{text_summaries}]')
+    logger.info(f'length texts = {len(texts)}\n\t\ttexts: <{texts}>\n\t\ttexts summaries: [{text_summaries}]')
     # Если есть таблицы, выполняем их суммирование
     if tables:
         # Выполняем параллельное суммирование таблиц
         table_summaries = summarize_chain.batch(tables, {"max_concurrency":max_concurrency_workers })
-        logger.info(f'\t\ttables: <{tables}>\ntables summaries: [{table_summaries}]')
+        logger.info(f'length tables = {len(tables)}\n\t\ttables: <{tables}>\n\t\ttables summaries: [{table_summaries}]')
 
     return text_summaries, table_summaries  # Возвращаем результаты суммаризации
 
@@ -264,11 +279,11 @@ def image_summarize(img_base64, prompt, img_path):
                 )
             ]
         )
-        logger.info(f'\t\timage file: <{file.filename}> describe: [{msg.content}]')
+        logger.info(f'image file: <{file.filename}> describe: [{msg.content}]')
         url = f"https://gigachat.devices.sberbank.ru/api/v1/files/{file.id_}/delete"
         response = requests.request("POST", url, headers=headers, data=payload, verify=False, cert=False)
-        # print(f'\t\tdelete file {file.filename}: {response.status_code}')
-        logger.info(f'\t\tdelete file {file.filename}: status_code: {response.status_code}')
+        print(f'\t\tdelete file {file.filename}: {response.status_code}')
+        logger.info(f'delete file {file.filename}: status_code: {response.status_code}')
         return msg.content
 
     else:
