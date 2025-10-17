@@ -334,8 +334,11 @@ def generate_img_summaries(path):
     """
     #        - избегай вывода избыточной информации и малоизвестной терминологии, жаргонных слов и аббревиатур;
     #        - не начинай вывод описания со слова [описание].
-    # Обрабатываем все файлы в указанной директории
-    list_files = os.listdir(path)
+    # Обрабатываем все jpg файлы в указанной директории
+    list_files = []
+    for file in os.listdir(path):
+        if file.endswith(".jpg"):
+            list_files.append(file)
     n_files = len(list_files)
     n_file = 1
     for img_file in sorted(list_files):
