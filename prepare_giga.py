@@ -16,8 +16,15 @@ from langchain_gigachat.chat_models import GigaChat
 import time
 import requests
 import logging
-
-
+from langchain_core.language_models.base import LanguageModelInput
+from langchain_core.runnables import RunnableConfig, get_config_list
+from typing import (
+    Any,
+    List,
+    Optional,
+    Union,
+    cast,
+)
 # set logging level - for logging to file add: filename='myapp.log',
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format='\t\t%(asctime)s - %(levelname)s - %(message)s')
@@ -28,8 +35,53 @@ if not sys.warnoptions:
 
 warnings.filterwarnings('ignore', category=DeprecationWarning)
 
+# class for multithread GigaChat
+class MultithreadGigaChat(GigaChat):
+
+    def batch(
+            self,
+            inputs: List[LanguageModelInput],
+            config: Optional[Union[RunnableConfig, List[RunnableConfig]]] = None,
+            *,
+            return_exceptions: bool = False,
+            **kwargs: Any,
+    ) -> List[str]:
+        if not inputs:
+            return []
+
+        config = get_config_list(config, len(inputs))
+        max_concurrency = config[0].get("max_concurrency")
+        if max_concurrency is None:
+            try:
+                llm_result = self.generate_prompt(
+                    [self._convert_input(input) for input in inputs]
+                )
+                return [g[0].text for g in llm_result.generations]
+            except Exception as e:
+                if return_exceptions:
+                    return cast(List[str], [e for _ in inputs])
+                else:
+                    raise e
+        else:
+            batches = [
+                inputs[i: i + max_concurrency]
+                for i in range(0, len(inputs), max_concurrency)
+            ]
+            config = [{**c, "max_concurrency": None} for c in config]  # type: ignore[misc]
+            return [
+                output
+                for i, batch in enumerate(batches)
+                for output in self.batch(
+                    batch,
+                    config=config[i * max_concurrency: (i + 1) * max_concurrency],
+                    return_exceptions=return_exceptions,
+                    **kwargs,
+                )
+            ]
+
 print(f"получение параметров подключения к GigaChat")
 giga = True
+max_concurrency_workers = 10
 model_giga = "GigaChat-2-Max" # "GigaChat-2-Pro"
 # GigaChat-2-Max
 # GigaChat-Max
@@ -40,7 +92,6 @@ model_giga = "GigaChat-2-Max" # "GigaChat-2-Pro"
 # GigaChat
 if giga:
     from giga_util import get_giga_credentials, get_giga_url_access_mode, get_giga_token_access
-    max_concurrency_workers = 1
 
     credentials = get_giga_credentials()
     if credentials == '':
@@ -58,14 +109,6 @@ if giga:
     else:
         logger.critical('Can''t get authorization token to GigaChat')
         exit(1)
-else:
-    max_concurrency_workers = 5
-
-def mode_file(file, mode=False):
-    if mode:
-        path_file, name_file = os.path.split(file)
-        file = path_file + "/" + "giga_" + name_file
-    return file
 
 # пути к файлам
 print(f"настройка путей входных/выходных файлов")
@@ -196,12 +239,13 @@ def generate_text_summaries(texts, tables, summarize_texts=False):
     # Создаем модель для генерации суммаризаций. Устанавливаем температуру 0 для детерминированных ответов.
     if giga:
         # Авторизация в сервисе GigaChat
-        model = GigaChat(model=model_giga,
+        model = MultithreadGigaChat(model=model_giga,
                         credentials=credentials,
                         verify_ssl_certs=False,
                         scope="GIGACHAT_API_CORP",
                         auth_url=url_oauth,
-                        temperature=0)
+                        temperature=0,
+                        profanity_check=False)
     else:
         model = ChatOpenAI(temperature=0, model="gpt-4o") # OpenAI API ключ в os.environ["OPENAI_API_KEY"]
 
@@ -215,7 +259,7 @@ def generate_text_summaries(texts, tables, summarize_texts=False):
     # Если есть текстовые элементы и требуется их суммирование
     if texts and summarize_texts:
         # Выполняем параллельное суммирование текстов
-        text_summaries = summarize_chain.batch(texts, {"max_concurrency":max_concurrency_workers })
+        text_summaries = summarize_chain.batch(texts, config={"max_concurrency":max_concurrency_workers })
     elif texts:
         # Если суммирование не требуется, просто передаем исходные тексты
         text_summaries = texts
@@ -223,7 +267,7 @@ def generate_text_summaries(texts, tables, summarize_texts=False):
     # Если есть таблицы, выполняем их суммирование
     if tables:
         # Выполняем параллельное суммирование таблиц
-        table_summaries = summarize_chain.batch(tables, {"max_concurrency":max_concurrency_workers })
+        table_summaries = summarize_chain.batch(tables, config={"max_concurrency":max_concurrency_workers })
         logger.info(f'length tables = {len(tables)}\n\t\ttables: <{tables}>\n\t\ttables summaries: [{table_summaries}]')
 
     return text_summaries, table_summaries  # Возвращаем результаты суммаризации
@@ -266,7 +310,7 @@ def image_summarize(img_base64, prompt, img_path):
                         temperature=0)
         file = chat.upload_file(open(img_path, "rb"),"general")
         print(f'\t\tuploaded file: {file.filename} got id = {file.id_}')
-        time.sleep(5)  # Sleep for 5 seconds
+        time.sleep(3)  # Sleep for 3 seconds
         # Возвращаем содержимое ответа от модели
         print(f'\t\tdescribing image file: {file.filename}')
         msg = chat.invoke(
