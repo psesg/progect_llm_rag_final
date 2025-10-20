@@ -63,7 +63,7 @@ else:
 # пути к файлам
 print(f"настройка путей входных/выходных файлов")
 # debug code on alt_sources_energy.pdf work real on Sber2023.pdf
-report_path = "source_pdf_report/alt_sources_energy.pdf" #Sber2023.pdf alt_sources_energy.pdf
+report_path = "source_pdf_report/Sber2023.pdf" #Sber2023.pdf alt_sources_energy.pdf
 print(f"\t\tвходной файл: {report_path}")
 if giga:
     image_block_output_dir = "./giga_extracted_images"
