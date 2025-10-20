@@ -6,6 +6,16 @@ import socket as sckt
 import logging
 import requests
 import json
+from langchain_gigachat.chat_models import GigaChat
+from langchain_core.language_models.base import LanguageModelInput
+from langchain_core.runnables import RunnableConfig, get_config_list
+from typing import (
+    Any,
+    List,
+    Optional,
+    Union,
+    cast,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -124,3 +134,49 @@ def get_giga_token_access(url_oauth :str, credentials :str) -> tuple[bool, str]:
     else:
         rc = True
     return rc, tk
+
+# class for multithread GigaChat
+class MultithreadGigaChat(GigaChat):
+    """
+        allow work GigaChat in multithread mode
+    """
+    def batch(
+            self,
+            inputs: List[LanguageModelInput],
+            config: Optional[Union[RunnableConfig, List[RunnableConfig]]] = None,
+            *,
+            return_exceptions: bool = False,
+            **kwargs: Any,
+    ) -> List[str]:
+        if not inputs:
+            return []
+
+        config = get_config_list(config, len(inputs))
+        max_concurrency = config[0].get("max_concurrency")
+        if max_concurrency is None:
+            try:
+                llm_result = self.generate_prompt(
+                    [self._convert_input(input) for input in inputs]
+                )
+                return [g[0].text for g in llm_result.generations]
+            except Exception as e:
+                if return_exceptions:
+                    return cast(List[str], [e for _ in inputs])
+                else:
+                    raise e
+        else:
+            batches = [
+                inputs[i: i + max_concurrency]
+                for i in range(0, len(inputs), max_concurrency)
+            ]
+            config = [{**c, "max_concurrency": None} for c in config]  # type: ignore[misc]
+            return [
+                output
+                for i, batch in enumerate(batches)
+                for output in self.batch(
+                    batch,
+                    config=config[i * max_concurrency: (i + 1) * max_concurrency],
+                    return_exceptions=return_exceptions,
+                    **kwargs,
+                )
+            ]
