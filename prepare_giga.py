@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
-
+import unstructured.documents.elements
+from unstructured.documents.elements import NarrativeText, Table, Image
 from unstructured.partition.pdf import partition_pdf
 from langchain.text_splitter import CharacterTextSplitter
 from langchain_core.prompts import ChatPromptTemplate
@@ -82,8 +83,8 @@ print(f"\t\t\t{texts_pkl}")
 tables_pkl = os.path.join(path_to_pkl,"tables_pkl.pkl")
 print(f"\t\t\t{tables_pkl}")
 
-texts_4k_token_pkl = os.path.join(path_to_pkl,"texts_4k_token_pkl.pkl")
-print(f"\t\t\t{texts_4k_token_pkl}")
+# texts_4k_token_pkl = os.path.join(path_to_pkl,"texts_4k_token_pkl.pkl")
+# print(f"\t\t\t{texts_4k_token_pkl}")
 
 text_summaries_pkl = os.path.join(path_to_pkl,"text_summaries_pkl.pkl")
 print(f"\t\t\t{text_summaries_pkl}")
@@ -116,14 +117,15 @@ def extract_pdf_elements(fname, image_output_dir):
     return partition_pdf(
         filename=fname,                                 # Путь к файлу, который нужно обработать
         strategy="hi_res",
+
+        # infer_table_structure=True,                     # Автоматическое определение структуры таблиц в документе
+        # chunking_strategy="by_title",                   # Стратегия разбиения текста на части
+        # multipage_sections=False,                       # False - разделять элементы на разных страницах на отдельные фрагменты
+        # max_characters=1500,                            # Максимальное количество символов в одном чанке текста
+        # new_after_n_chars=1250,                         # Число символов, после которого начинается новый чанк текста
+        # combine_text_under_n_chars=250,                 # Минимальное количество символов, при котором чанки объединяются
         extract_images_in_pdf=True,                     # Указание на то, что из PDF нужно извлечь изображения
-        infer_table_structure=True,                     # Автоматическое определение структуры таблиц в документе
-        chunking_strategy="by_title",                   # Стратегия разбиения текста на части
-        multipage_sections=False,                       # False - разделять элементы на разных страницах на отдельные фрагменты
-        max_characters=1500,                            # Максимальное количество символов в одном чанке текста
-        new_after_n_chars=1250,                         # Число символов, после которого начинается новый чанк текста
-        combine_text_under_n_chars=250,                 # Минимальное количество символов, при котором чанки объединяются
-        extract_image_block_to_payload=False,
+        extract_image_block_to_payload=False,           # будут ли извлеченные изображения включены в результат в виде данных (payload)
         extract_image_block_output_dir=image_output_dir,# куда будут сохраняться извлеченные изображения
         languages=["rus", "eng"]                        # языки для текста
         # unique_element_ids=True
@@ -146,12 +148,14 @@ def categorize_elements(raw_pdf_elements, source_document):
     # texts = []   # Список для хранения текстовых элементов
     text_data = []  # Список для хранения текстовых элементов с метаданными
     table_data = [] # Список для хранения элементов типа "таблица" с метаданными
+    image_data = []  # Список для хранения элементов типа "image" с метаданными
     # '- '
     # Инициализация словаря для подсчета параграфов на каждой странице
     paragraph_counters = {}
     for element in raw_pdf_elements:
         # Проверка типа элемента. Если элемент является таблицей, добавляем его в список таблиц
-        if "unstructured.documents.elements.Table" in str(type(element)):
+        # if "unstructured.documents.elements.Table" in str(type(element)):
+        if isinstance(element, Table):
             # tables.append(str(element))
             # Извлечение id элемента
             id_element = str(element.id)
@@ -170,7 +174,8 @@ def categorize_elements(raw_pdf_elements, source_document):
             })
 
         # Если элемент является композитным текстовым элементом, добавляем его в список текстов
-        elif "unstructured.documents.elements.CompositeElement" in str(type(element)):
+        # if "unstructured.documents.elements.CompositeElement" in str(type(element)):
+        if isinstance(element, NarrativeText):
             # texts.append(str(element))
             id_element = str(element.id)
             # Извлечение номера страницы из метаданных элемента
@@ -196,8 +201,26 @@ def categorize_elements(raw_pdf_elements, source_document):
                 "paragraph_number": paragraph_number, # Номер параграфа на текущей странице
                 "text": text_content.replace('- ','') # Сам текст
             })
+        # Если элемент является image элементом, добавляем его в список images
+        # if "unstructured.documents.elements.Image" in str(type(element)):
+        if isinstance(element, Image):
+            # Извлечение id элемента
+            id_element = str(element.id)
+            # Извлечение номера страницы из метаданных элемента
+            page_number = element.metadata.page_number
+            # Извлечение пути к изображению из метаданных элемента (если он существует)
+            image_path = element.metadata.image_path if hasattr(element.metadata, 'image_path') else None
 
-    return text_data, table_data  # Возвращаем списки с текстами и таблицами
+            # Добавление метаданных изображения в список image_data
+            image_data.append({
+                "id_element": id_element,  # id элемента
+                "source_document": source_document,  # Название или путь к исходному документу
+                "page_number": page_number,          # Номер страницы, на которой находится изображение
+                "image_path": image_path             # Путь к изображению (если доступен)
+            })
+        # logger.info(f'\t\telement.id = {str(element.id)}\ttype(element) = {str(type(element))}')
+
+    return text_data, table_data, image_data # Возвращаем списки с текстами, таблицами и изображениями
 
 # Функция для суммаризации текста и таблиц
 def generate_text_summaries(texts, tables, summarize_texts=False):
@@ -270,7 +293,7 @@ def generate_text_summaries(texts, tables, summarize_texts=False):
         for txt in tables:
             txt.update({'text': summarize_chain.invoke(txt['text'], config={"max_concurrency":max_concurrency_workers })})
             table_summaries.append(txt)
-        logger.info(f'length tables = {len(tables)}\n\t\ttables: <{tables}>\n\t\ttables summaries: [{table_summaries}]')
+    logger.info(f'length tables = {len(tables)}\n\t\ttables: <{tables}>\n\t\ttables summaries: [{table_summaries}]')
 
     return text_summaries, table_summaries  # Возвращаем результаты суммаризации
 
@@ -426,7 +449,7 @@ with open(raw_pdf_elements_pkl, 'wb') as outp:
 ########################################################################################################################
 print(f"категоризация элементов извлеченных из PDF-файла")
 # Категоризируем извлеченные элементы на текстовые и табличные с помощью функции categorize_elements
-texts, tables = categorize_elements(raw_pdf_elements, report_path)
+texts, tables, images = categorize_elements(raw_pdf_elements, report_path)
 
 # сохраняем результаты для дальнейшего использования
 with open(texts_pkl, 'wb') as outp:
@@ -457,24 +480,36 @@ with open(tables_pkl, 'wb') as outp:
 print(f"суммаризация текстов и таблиц извлеченных из PDF-файла")
 # Вызываем функцию для суммаризации текстов и таблиц, указывая, что нужно суммировать тексты
 # text_summaries, table_summaries = generate_text_summaries(texts_4k_token, tables, summarize_texts=True)
-text_summaries, table_summaries = generate_text_summaries(texts, tables, summarize_texts=True)
-# сохраняем результаты для дальнейшего использования
-with open(text_summaries_pkl, 'wb') as outp:
-    pickle.dump(text_summaries, outp, pickle.HIGHEST_PROTOCOL)
-
-with open(table_summaries_pkl, 'wb') as outp:
-    pickle.dump(table_summaries, outp, pickle.HIGHEST_PROTOCOL)
+# text_summaries, table_summaries = generate_text_summaries(texts, tables, summarize_texts=True)
+# # сохраняем результаты для дальнейшего использования
+# with open(text_summaries_pkl, 'wb') as outp:
+#     pickle.dump(text_summaries, outp, pickle.HIGHEST_PROTOCOL)
+#
+# with open(table_summaries_pkl, 'wb') as outp:
+#     pickle.dump(table_summaries, outp, pickle.HIGHEST_PROTOCOL)
 
 # печать сэмплов данных
 n_saples=10
-if len(text_summaries) > 0:
-        print(f"\tlen(text_summaries)={len(text_summaries)}")
+if len(texts) >= 0:
+        print(f"\tlen(texts)={len(texts)}")
         print("\t", end="")
-        print(text_summaries[:n_saples])
-if len(table_summaries) > 0:
-        print(f"\tlen(table_summaries)={len(table_summaries)}")
+        print(texts[:n_saples])
+if len(tables) >= 0:
+        print(f"\tlen(tables)={len(tables)}")
         print("\t", end="")
-        print(table_summaries[:n_saples])
+        print(tables[:n_saples])
+# if len(text_summaries) >= 0:
+#         print(f"\tlen(text_summaries)={len(text_summaries)}")
+#         print("\t", end="")
+#         print(text_summaries[:n_saples])
+# if len(table_summaries) >= 0:
+#         print(f"\tlen(table_summaries)={len(table_summaries)}")
+#         print("\t", end="")
+#         print(table_summaries[:n_saples])
+if len(images) >= 0:
+        print(f"\tlen(images)={len(images)}")
+        print("\t", end="")
+        print(images[:n_saples])
 exit(10)
 ########################################################################################################################
 print(f"суммаризация изображений извлеченных из PDF-файла")
