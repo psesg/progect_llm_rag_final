@@ -63,7 +63,7 @@ else:
 # пути к файлам
 print(f"настройка путей входных/выходных файлов")
 # debug code on alt_sources_energy.pdf work real on Sber2023.pdf
-report_path = "source_pdf_report/Sber2023.pdf" #Sber2023.pdf alt_sources_energy.pdf
+report_path = "source_pdf_report/alt_sources_energy.pdf" #Sber2023.pdf alt_sources_energy.pdf
 print(f"\t\tвходной файл: {report_path}")
 if giga:
     image_block_output_dir = "./giga_extracted_images"
@@ -130,7 +130,7 @@ def extract_pdf_elements(fname, image_output_dir):
     )
 
 # Функция категоризации элементов
-def categorize_elements(raw_pdf_elements):
+def categorize_elements(raw_pdf_elements, source_document):
     """
     Функция для категоризации извлеченных элементов из PDF-файла.
     Элементы делятся на текстовые элементы и таблицы.
@@ -142,16 +142,57 @@ def categorize_elements(raw_pdf_elements):
     Возвращает:
     Два списка: texts (текстовые элементы) и tables (таблицы).
     """
-    tables = []  # Список для хранения элементов типа "таблица"
-    texts = []   # Список для хранения текстовых элементов
+    # tables = []  # Список для хранения элементов типа "таблица"
+    # texts = []   # Список для хранения текстовых элементов
+    text_data = []  # Список для хранения текстовых элементов с метаданными
+    table_data = [] # Список для хранения элементов типа "таблица" с метаданными
+    # '- '
+    # Инициализация словаря для подсчета параграфов на каждой странице
+    paragraph_counters = {}
     for element in raw_pdf_elements:
         # Проверка типа элемента. Если элемент является таблицей, добавляем его в список таблиц
         if "unstructured.documents.elements.Table" in str(type(element)):
-            tables.append(str(element))
+            # tables.append(str(element))
+            # Извлечение номера страницы из метаданных элемента
+            page_number = element.metadata.page_number
+
+            # Преобразование таблицы в строковое представление
+            table_content = str(element)
+
+            # Добавление метаданных таблицы в список table_data
+            table_data.append({
+                "source_document": source_document,  # Название или путь к исходному документу
+                "page_number": page_number,          # Номер страницы, на которой находится таблица
+                "table_content": table_content.replace('- ','')       # Содержимое таблицы в виде строки
+            })
+
         # Если элемент является композитным текстовым элементом, добавляем его в список текстов
         elif "unstructured.documents.elements.CompositeElement" in str(type(element)):
-            texts.append(str(element))
-    return texts, tables  # Возвращаем списки с текстами и таблицами
+            # texts.append(str(element))
+            # Извлечение номера страницы из метаданных элемента
+            page_number = element.metadata.page_number
+            # Если на этой странице еще нет параграфов, инициализируем счетчик параграфов
+            if page_number not in paragraph_counters:
+                paragraph_counters[page_number] = 1
+            else:
+                # Если параграфы на странице уже есть, увеличиваем счетчик
+                paragraph_counters[page_number] += 1
+
+            # Определение текущего номера параграфа на странице
+            paragraph_number = paragraph_counters[page_number]
+
+            # Извлечение текста из элемента
+            text_content = str(element.text)
+
+            # Добавление текста и его метаданных в список text_data
+            text_data.append({
+                "source_document": source_document,   # Название или путь к исходному документу
+                "page_number": page_number,           # Номер страницы, на которой находится текст
+                "paragraph_number": paragraph_number, # Номер параграфа на текущей странице
+                "text": text_content.replace('- ','') # Сам текст
+            })
+
+    return text_data, table_data  # Возвращаем списки с текстами и таблицами
 
 # Функция для суммаризации текста и таблиц
 def generate_text_summaries(texts, tables, summarize_texts=False):
@@ -203,13 +244,15 @@ def generate_text_summaries(texts, tables, summarize_texts=False):
     # Определяем цепочку обработки запросов: сначала шаблон запроса, затем модель, затем парсер выходных данных
     summarize_chain = {"element": lambda x: x} | prompt | model | StrOutputParser()
 
-    text_summaries = []  # Список для хранения суммаризаций текстов
+    # text_summaries = []  # Список для хранения суммаризаций текстов
     table_summaries = []  # Список для хранения суммаризаций таблиц
 
     # Если есть текстовые элементы и требуется их суммирование
     if texts and summarize_texts:
         # Выполняем параллельное суммирование текстов
-        text_summaries = summarize_chain.batch(texts, config={"max_concurrency":max_concurrency_workers })
+        #text_summaries = summarize_chain.batch(texts, config={"max_concurrency":max_concurrency_workers })
+        text_for_summaries = [d['texts'] for d in texts]
+        text_summaries = summarize_chain.batch(text_for_summaries, config={"max_concurrency":max_concurrency_workers })
     elif texts:
         # Если суммирование не требуется, просто передаем исходные тексты
         text_summaries = texts
@@ -374,7 +417,7 @@ with open(raw_pdf_elements_pkl, 'wb') as outp:
 ########################################################################################################################
 print(f"категоризация элементов извлеченных из PDF-файла")
 # Категоризируем извлеченные элементы на текстовые и табличные с помощью функции categorize_elements
-texts, tables = categorize_elements(raw_pdf_elements)
+texts, tables = categorize_elements(raw_pdf_elements, report_path)
 
 # сохраняем результаты для дальнейшего использования
 with open(texts_pkl, 'wb') as outp:
@@ -384,28 +427,28 @@ with open(tables_pkl, 'wb') as outp:
     pickle.dump(tables, outp, pickle.HIGHEST_PROTOCOL)
 
 ########################################################################################################################
-print(f"разбиваем объединенный текст на чанки")
-# Создаем объект CharacterTextSplitter для разбиения текста на части (чанки)
-text_splitter = CharacterTextSplitter.from_tiktoken_encoder(
-    chunk_size=1500,    # Максимальный размер чанка в символах
-    chunk_overlap=300   # Количество перекрывающихся символов между чанками
-)
-
-# Объединяем все текстовые элементы в одну строку
-joined_texts = " ".join(texts)
-
-# Разбиваем объединенный текст на чанки, используя созданный CharacterTextSplitter
-texts_4k_token = text_splitter.split_text(joined_texts)
-
-# сохраняем результаты для дальнейшего использования
-with open(texts_4k_token_pkl, 'wb') as outp:
-    pickle.dump(texts_4k_token, outp, pickle.HIGHEST_PROTOCOL)
+# print(f"разбиваем объединенный текст на чанки")
+# # Создаем объект CharacterTextSplitter для разбиения текста на части (чанки)
+# text_splitter = CharacterTextSplitter.from_tiktoken_encoder(
+#     chunk_size=1500,    # Максимальный размер чанка в символах
+#     chunk_overlap=300   # Количество перекрывающихся символов между чанками
+# )
+#
+# # Объединяем все текстовые элементы в одну строку
+# joined_texts = " ".join(texts)
+#
+# # Разбиваем объединенный текст на чанки, используя созданный CharacterTextSplitter
+# texts_4k_token = text_splitter.split_text(joined_texts)
+#
+# # сохраняем результаты для дальнейшего использования
+# with open(texts_4k_token_pkl, 'wb') as outp:
+#     pickle.dump(texts_4k_token, outp, pickle.HIGHEST_PROTOCOL)
 
 ########################################################################################################################
 print(f"суммаризация текстов и таблиц извлеченных из PDF-файла")
 # Вызываем функцию для суммаризации текстов и таблиц, указывая, что нужно суммировать тексты
-text_summaries, table_summaries = generate_text_summaries(texts_4k_token, tables, summarize_texts=True)
-
+# text_summaries, table_summaries = generate_text_summaries(texts_4k_token, tables, summarize_texts=True)
+text_summaries, table_summaries = generate_text_summaries(texts, tables, summarize_texts=True)
 # сохраняем результаты для дальнейшего использования
 with open(text_summaries_pkl, 'wb') as outp:
     pickle.dump(text_summaries, outp, pickle.HIGHEST_PROTOCOL)
@@ -413,6 +456,17 @@ with open(text_summaries_pkl, 'wb') as outp:
 with open(table_summaries_pkl, 'wb') as outp:
     pickle.dump(table_summaries, outp, pickle.HIGHEST_PROTOCOL)
 
+# печать сэмплов данных
+n_saples=10
+if len(text_summaries) > 0:
+        print(f"\tlen(text_summaries)={len(text_summaries)}")
+        print("\t", end="")
+        print(text_summaries[:n_saples])
+if len(table_summaries) > 0:
+        print(f"\tlen(table_summaries)={len(table_summaries)}")
+        print("\t", end="")
+        print(table_summaries[:n_saples])
+exit(10)
 ########################################################################################################################
 print(f"суммаризация изображений извлеченных из PDF-файла")
 # Вызываем функцию для генерации суммаризаций изображений
