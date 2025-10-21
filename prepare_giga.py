@@ -120,9 +120,9 @@ def extract_pdf_elements(fname, image_output_dir):
         infer_table_structure=True,                     # Автоматическое определение структуры таблиц в документе
         chunking_strategy="by_title",                   # Стратегия разбиения текста на части
         multipage_sections=False,                       # False - разделять элементы на разных страницах на отдельные фрагменты
-        max_characters=1000,                            # Максимальное количество символов в одном чанке текста
-        new_after_n_chars=800,                          # Число символов, после которого начинается новый чанк текста
-        combine_text_under_n_chars=200,                 # Минимальное количество символов, при котором чанки объединяются
+        max_characters=1500,                            # Максимальное количество символов в одном чанке текста
+        new_after_n_chars=1250,                         # Число символов, после которого начинается новый чанк текста
+        combine_text_under_n_chars=250,                 # Минимальное количество символов, при котором чанки объединяются
         extract_image_block_to_payload=False,
         extract_image_block_output_dir=image_output_dir,# куда будут сохраняться извлеченные изображения
         languages=["rus", "eng"]                        # языки для текста
