@@ -16,7 +16,7 @@ from langchain_gigachat.chat_models import GigaChat
 import time
 import requests
 import logging
-from giga_util import get_giga_credentials, get_giga_url_access_mode, get_giga_token_access, MultithreadGigaChat
+from giga_util import get_giga_credentials, get_giga_url_access_mode, get_giga_token_access
 
 # set logging level - for logging to file add: filename='myapp.log',
 logger = logging.getLogger(__name__)
@@ -40,7 +40,7 @@ model_giga = "GigaChat-2-Max" # "GigaChat-2-Pro"
 # GigaChat-2
 # GigaChat
 if giga:
-    max_concurrency_workers = 10
+    max_concurrency_workers = 1
     credentials = get_giga_credentials()
     if credentials == '':
         logger.critical('OS variable: GIGACHAT_CREDENTIALS not set')
@@ -125,8 +125,8 @@ def extract_pdf_elements(fname, image_output_dir):
         combine_text_under_n_chars=200,                 # Минимальное количество символов, при котором чанки объединяются
         extract_image_block_to_payload=False,
         extract_image_block_output_dir=image_output_dir,# куда будут сохраняться извлеченные изображения
-        # ocr_languages=["rus", "eng"],                 # языки для OCR - устарело
         languages=["rus", "eng"]                        # языки для текста
+        # unique_element_ids=True
     )
 
 # Функция категоризации элементов
@@ -153,6 +153,8 @@ def categorize_elements(raw_pdf_elements, source_document):
         # Проверка типа элемента. Если элемент является таблицей, добавляем его в список таблиц
         if "unstructured.documents.elements.Table" in str(type(element)):
             # tables.append(str(element))
+            # Извлечение id элемента
+            id_element = str(element.id)
             # Извлечение номера страницы из метаданных элемента
             page_number = element.metadata.page_number
 
@@ -161,6 +163,7 @@ def categorize_elements(raw_pdf_elements, source_document):
 
             # Добавление метаданных таблицы в список table_data
             table_data.append({
+                "id_element": id_element,  # id элемента
                 "source_document": source_document,  # Название или путь к исходному документу
                 "page_number": page_number,          # Номер страницы, на которой находится таблица
                 "table_content": table_content.replace('- ','')       # Содержимое таблицы в виде строки
@@ -169,6 +172,7 @@ def categorize_elements(raw_pdf_elements, source_document):
         # Если элемент является композитным текстовым элементом, добавляем его в список текстов
         elif "unstructured.documents.elements.CompositeElement" in str(type(element)):
             # texts.append(str(element))
+            id_element = str(element.id)
             # Извлечение номера страницы из метаданных элемента
             page_number = element.metadata.page_number
             # Если на этой странице еще нет параграфов, инициализируем счетчик параграфов
@@ -186,6 +190,7 @@ def categorize_elements(raw_pdf_elements, source_document):
 
             # Добавление текста и его метаданных в список text_data
             text_data.append({
+                "id_element": id_element,  # id элемента
                 "source_document": source_document,   # Название или путь к исходному документу
                 "page_number": page_number,           # Номер страницы, на которой находится текст
                 "paragraph_number": paragraph_number, # Номер параграфа на текущей странице
@@ -230,7 +235,7 @@ def generate_text_summaries(texts, tables, summarize_texts=False):
     # Создаем модель для генерации суммаризаций. Устанавливаем температуру 0 для детерминированных ответов.
     if giga:
         # Авторизация в сервисе GigaChat
-        model = MultithreadGigaChat(model=model_giga,
+        model = GigaChat(model=model_giga,
                         credentials=credentials,
                         verify_ssl_certs=False,
                         scope="GIGACHAT_API_CORP",
@@ -244,15 +249,16 @@ def generate_text_summaries(texts, tables, summarize_texts=False):
     # Определяем цепочку обработки запросов: сначала шаблон запроса, затем модель, затем парсер выходных данных
     summarize_chain = {"element": lambda x: x} | prompt | model | StrOutputParser()
 
-    # text_summaries = []  # Список для хранения суммаризаций текстов
+    text_summaries = []  # Список для хранения суммаризаций текстов
     table_summaries = []  # Список для хранения суммаризаций таблиц
 
     # Если есть текстовые элементы и требуется их суммирование
     if texts and summarize_texts:
-        # Выполняем параллельное суммирование текстов
+        # Выполняем суммирование текстов
         #text_summaries = summarize_chain.batch(texts, config={"max_concurrency":max_concurrency_workers })
-        text_for_summaries = [d['texts'] for d in texts]
-        text_summaries = summarize_chain.batch(text_for_summaries, config={"max_concurrency":max_concurrency_workers })
+        for txt in texts:
+            txt.update({'text': summarize_chain.invoke(txt['text'], config={"max_concurrency":max_concurrency_workers })})
+            text_summaries.append(txt)
     elif texts:
         # Если суммирование не требуется, просто передаем исходные тексты
         text_summaries = texts
@@ -260,7 +266,10 @@ def generate_text_summaries(texts, tables, summarize_texts=False):
     # Если есть таблицы, выполняем их суммирование
     if tables:
         # Выполняем параллельное суммирование таблиц
-        table_summaries = summarize_chain.batch(tables, config={"max_concurrency":max_concurrency_workers })
+        # table_summaries = summarize_chain.batch(tables, config={"max_concurrency":max_concurrency_workers })
+        for txt in tables:
+            txt.update({'text': summarize_chain.invoke(txt['text'], config={"max_concurrency":max_concurrency_workers })})
+            table_summaries.append(txt)
         logger.info(f'length tables = {len(tables)}\n\t\ttables: <{tables}>\n\t\ttables summaries: [{table_summaries}]')
 
     return text_summaries, table_summaries  # Возвращаем результаты суммаризации
