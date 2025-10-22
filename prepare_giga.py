@@ -341,10 +341,10 @@ def image_summarize(img_base64, prompt, img_path):
                         auth_url=url_oauth,
                         temperature=0)
         file = chat.upload_file(open(img_path, "rb"),"general")
-        print(f'\t\tuploaded file: {file.filename} got id = {file.id_}')
+        print(f'\t\t\tuploaded file: {file.filename} got id = {file.id_}')
         time.sleep(3)  # Sleep for 3 seconds
         # Возвращаем содержимое ответа от модели
-        print(f'\t\tdescribing image file: {file.filename}')
+        print(f'\t\t\tdescribing image file: {file.filename}')
         msg = chat.invoke(
             [
                 HumanMessage(
@@ -358,7 +358,7 @@ def image_summarize(img_base64, prompt, img_path):
         logger.info(f'image file: <{file.filename}> describe: [{msg.content}]')
         url = f"https://gigachat.devices.sberbank.ru/api/v1/files/{file.id_}/delete"
         response = requests.request("POST", url, headers=headers, data=payload, verify=False, cert=False)
-        print(f'\t\tdelete file {file.filename}: {response.status_code}')
+        print(f'\t\t\tdelete file {file.filename}: {response.status_code}')
         logger.info(f'delete file {file.filename}: status_code: {response.status_code}')
         return msg.content
 
