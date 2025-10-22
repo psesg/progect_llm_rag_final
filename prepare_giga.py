@@ -83,6 +83,9 @@ print(f"\t\t\t{texts_pkl}")
 tables_pkl = os.path.join(path_to_pkl,"tables_pkl.pkl")
 print(f"\t\t\t{tables_pkl}")
 
+images_pkl = os.path.join(path_to_pkl,"images_pkl.pkl")
+print(f"\t\t\t{images_pkl}")
+
 # texts_4k_token_pkl = os.path.join(path_to_pkl,"texts_4k_token_pkl.pkl")
 # print(f"\t\t\t{texts_4k_token_pkl}")
 
@@ -432,174 +435,219 @@ def generate_img_summaries(images):
 ########################################################################################################################
 # точка входа - начало реальной обработки файла
 ########################################################################################################################
-if not os.path.exists(report_path):
-    print(f"file for processing not exists:{report_path}")
-    exit(1)
+# read and append to list run parameters
+params = []
+allowed_params = ['-get_raw', '-cat_txt_tbl_img', '-sum_txt_tbl', '-sum_img', '-get_stat']
+strStart = sys.argv[0]
+if len(sys.argv) > 1:
+    for count, value in enumerate(sys.argv):
+        if count > 0:
+            params.append(value.lower())
+# check run parameters
+if len(params) > 0  and not set(params).issubset(allowed_params):
+    print(f'Error - got unknown key(s): {list(set(params) - set(allowed_params))}\nExit script!')
+    exit(10)
+########################################################################################################################
+if  len(params) == 0 or '-get_raw' in params:
 
-print(f"извлечениe элементов из PDF-файла: {report_path}")
-# Извлекаем элементы из PDF-файла с помощью функции extract_pdf_elements
-raw_pdf_elements = extract_pdf_elements(report_path, image_block_output_dir)
+    print(f"извлечениe элементов из PDF-файла: {report_path}")
+    if not os.path.exists(report_path):
+        print(f"file for processing not exists:{report_path}")
+        exit(1)
 
-# сохраняем результаты для дальнейшего использования
-with open(raw_pdf_elements_pkl, 'wb') as outp:
-    pickle.dump(raw_pdf_elements, outp, pickle.HIGHEST_PROTOCOL)
+    # Извлекаем элементы из PDF-файла с помощью функции extract_pdf_elements
+    raw_pdf_elements = extract_pdf_elements(report_path, image_block_output_dir)
+
+    # сохраняем результаты для дальнейшего использования
+    with open(raw_pdf_elements_pkl, 'wb') as outp:
+        pickle.dump(raw_pdf_elements, outp, pickle.HIGHEST_PROTOCOL)
 
 ########################################################################################################################
-print(f"категоризация элементов извлеченных из PDF-файла")
-# Категоризируем извлеченные элементы на текстовые и табличные с помощью функции categorize_elements
-texts, tables, images = categorize_elements(raw_pdf_elements, report_path)
+if  len(params) == 0 or '-cat_txt_tbl_img' in params:
 
-# сохраняем результаты для дальнейшего использования
-with open(texts_pkl, 'wb') as outp:
-    pickle.dump(texts, outp, pickle.HIGHEST_PROTOCOL)
+    print(f"категоризация texts, tables, images элементов извлеченных из PDF-файла")
+    # raw элементы
+    if not os.path.exists(raw_pdf_elements_pkl):
+        print(f"\t\tfile not exists:{raw_pdf_elements_pkl}")
+        exit(2)
+    else:
+        # Категоризируем извлеченные элементы на текстовые и табличные с помощью функции categorize_elements
+        texts, tables, images = categorize_elements(raw_pdf_elements, report_path)
 
-with open(tables_pkl, 'wb') as outp:
-    pickle.dump(tables, outp, pickle.HIGHEST_PROTOCOL)
+        # сохраняем результаты для дальнейшего использования
+        with open(texts_pkl, 'wb') as outp:
+            pickle.dump(texts, outp, pickle.HIGHEST_PROTOCOL)
 
-########################################################################################################################
-# print(f"разбиваем объединенный текст на чанки")
-# # Создаем объект CharacterTextSplitter для разбиения текста на части (чанки)
-# text_splitter = CharacterTextSplitter.from_tiktoken_encoder(
-#     chunk_size=1500,    # Максимальный размер чанка в символах
-#     chunk_overlap=300   # Количество перекрывающихся символов между чанками
-# )
-#
-# # Объединяем все текстовые элементы в одну строку
-# joined_texts = " ".join(texts)
-#
-# # Разбиваем объединенный текст на чанки, используя созданный CharacterTextSplitter
-# texts_4k_token = text_splitter.split_text(joined_texts)
-#
-# # сохраняем результаты для дальнейшего использования
-# with open(texts_4k_token_pkl, 'wb') as outp:
-#     pickle.dump(texts_4k_token, outp, pickle.HIGHEST_PROTOCOL)
+        with open(tables_pkl, 'wb') as outp:
+            pickle.dump(tables, outp, pickle.HIGHEST_PROTOCOL)
+
+        with open(images_pkl, 'wb') as outp:
+            pickle.dump(images, outp, pickle.HIGHEST_PROTOCOL)
 
 ########################################################################################################################
-print(f"суммаризация текстов и таблиц извлеченных из PDF-файла")
-# Вызываем функцию для суммаризации текстов и таблиц, указывая, что нужно суммировать тексты
-# text_summaries, table_summaries = generate_text_summaries(texts_4k_token, tables, summarize_texts=True)
+if  len(params) == 0 or '-sum_txt_tbl' in params:
 
-text_summaries, table_summaries = generate_text_summaries(texts, tables, summarize_texts=True)
-# сохраняем результаты для дальнейшего использования
-with open(text_summaries_pkl, 'wb') as outp:
-    pickle.dump(text_summaries, outp, pickle.HIGHEST_PROTOCOL)
+    print(f"суммаризация текстов и таблиц извлеченных из PDF-файла")
+    # Вызываем функцию для суммаризации текстов и таблиц, указывая, что нужно суммировать тексты
+    # text элементы
+    if not os.path.exists(texts_pkl):
+        print(f"\t\tfile not exists:{texts_pkl}")
+        exit(2)
+    else:
+        print(f"\t\tfile - ok: {texts_pkl}")
+        with open(texts_pkl, 'rb') as inp:
+            texts = pickle.load(inp)
 
-with open(table_summaries_pkl, 'wb') as outp:
-    pickle.dump(table_summaries, outp, pickle.HIGHEST_PROTOCOL)
+    # table элементы
+    if not os.path.exists(tables_pkl):
+        print(f"\t\tfile not exists:{tables_pkl}")
+        exit(2)
+    else:
+        print(f"\t\tfile - ok: {tables_pkl}")
+        with open(tables_pkl, 'rb') as inp:
+            tables = pickle.load(inp)
+
+    text_summaries, table_summaries = generate_text_summaries(texts, tables, summarize_texts=True)
+    # сохраняем результаты для дальнейшего использования
+    with open(text_summaries_pkl, 'wb') as outp:
+        pickle.dump(text_summaries, outp, pickle.HIGHEST_PROTOCOL)
+
+    with open(table_summaries_pkl, 'wb') as outp:
+        pickle.dump(table_summaries, outp, pickle.HIGHEST_PROTOCOL)
 
 ########################################################################################################################
-print(f"суммаризация изображений извлеченных из PDF-файла")
-# Вызываем функцию для генерации суммаризаций изображений
-img_base64_list, image_summaries = generate_img_summaries(images)
+if  len(params) == 0 or '-sum_img' in params:
 
-# сохраняем результаты для дальнейшего использования
-with open(img_base64_list_pkl, 'wb') as outp:
-    pickle.dump(img_base64_list, outp, pickle.HIGHEST_PROTOCOL)
-with open(image_summaries_pkl, 'wb') as outp:
-    pickle.dump(image_summaries, outp, pickle.HIGHEST_PROTOCOL)
+    print(f"суммаризация изображений извлеченных из PDF-файла")
+    # summary image элементы
+    if not os.path.exists(images_pkl):
+        print(f"\t\tfile not exists:{images_pkl}")
+        exit(2)
+    else:
+        print(f"\t\tfile - ok: {images_pkl}")
+        with open(images_pkl, 'rb') as inp:
+            images = pickle.load(inp)
+    # Вызываем функцию для генерации суммаризаций изображений
+    img_base64_list, image_summaries = generate_img_summaries(images)
+
+    # сохраняем результаты для дальнейшего использования
+    with open(img_base64_list_pkl, 'wb') as outp:
+        pickle.dump(img_base64_list, outp, pickle.HIGHEST_PROTOCOL)
+    with open(image_summaries_pkl, 'wb') as outp:
+        pickle.dump(image_summaries, outp, pickle.HIGHEST_PROTOCOL)
 
 ########################################################################################################################
-print(f"вывод статистики предобработки PDF-файла:")
-print(f"\tпроверка сохраненных  pkl файлов")
+if  len(params) == 0 or '-get_stat' in params:
+    print(f"вывод статистики предобработки PDF-файла:")
 
-# raw элементы
-if not os.path.exists(raw_pdf_elements_pkl):
-    print(f"\t\tfile not exists:{raw_pdf_elements_pkl}")
-    exit(2)
-else:
-    print(f"\t\tfile - ok: {raw_pdf_elements_pkl}")
-    with open(raw_pdf_elements_pkl, 'rb') as inp:
-        raw_pdf_elements = pickle.load(inp)
+    print(f"\tпроверка сохраненных  pkl файлов")
 
-# text элементы
-if not os.path.exists(texts_pkl):
-    print(f"\t\tfile not exists:{texts_pkl}")
-    exit(2)
-else:
-    print(f"\t\tfile - ok: {texts_pkl}")
-    with open(texts_pkl, 'rb') as inp:
-        texts = pickle.load(inp)
+    # raw элементы
+    if not os.path.exists(raw_pdf_elements_pkl):
+        print(f"\t\tfile not exists:{raw_pdf_elements_pkl}")
+        exit(2)
+    else:
+        print(f"\t\tfile - ok: {raw_pdf_elements_pkl}")
+        with open(raw_pdf_elements_pkl, 'rb') as inp:
+            raw_pdf_elements = pickle.load(inp)
 
-# table элементы
-if not os.path.exists(tables_pkl):
-    print(f"\t\tfile not exists:{tables_pkl}")
-    exit(2)
-else:
-    print(f"\t\tfile - ok: {tables_pkl}")
-    with open(tables_pkl, 'rb') as inp:
-        tables = pickle.load(inp)
+    # text элементы
+    if not os.path.exists(texts_pkl):
+        print(f"\t\tfile not exists:{texts_pkl}")
+        exit(2)
+    else:
+        print(f"\t\tfile - ok: {texts_pkl}")
+        with open(texts_pkl, 'rb') as inp:
+            texts = pickle.load(inp)
 
-# # chank text элементы
-# if not os.path.exists(texts_4k_token_pkl):
-#     print(f"\t\tfile not exists:{texts_4k_token_pkl}")
-#     exit(2)
-# else:
-#     print(f"\t\tfile - ok: {texts_4k_token_pkl}")
-#     with open(texts_4k_token_pkl, 'rb') as inp:
-#         texts_4k_token = pickle.load(inp)
+    # table элементы
+    if not os.path.exists(tables_pkl):
+        print(f"\t\tfile not exists:{tables_pkl}")
+        exit(2)
+    else:
+        print(f"\t\tfile - ok: {tables_pkl}")
+        with open(tables_pkl, 'rb') as inp:
+            tables = pickle.load(inp)
 
-# summary text элементы
-if not os.path.exists(text_summaries_pkl):
-    print(f"\t\tfile not exists:{text_summaries_pkl}")
-    exit(2)
-else:
-    print(f"\t\tfile - ok: {text_summaries_pkl}")
-    with open(text_summaries_pkl, 'rb') as inp:
-        text_summaries = pickle.load(inp)
+    # image элементы
+    if not os.path.exists(images_pkl):
+        print(f"\t\tfile not exists:{images_pkl}")
+        exit(2)
+    else:
+        print(f"\t\tfile - ok: {images_pkl}")
+        with open(images_pkl, 'rb') as inp:
+            images = pickle.load(inp)
 
-# summary table элементы
-if not os.path.exists(table_summaries_pkl):
-    print(f"\t\tfile not exists:{table_summaries_pkl}")
-    exit(2)
-else:
-    print(f"\t\tfile - ok: {table_summaries_pkl}")
-    with open(table_summaries_pkl, 'rb') as inp:
-        table_summaries = pickle.load(inp)
+    # summary text элементы
+    if not os.path.exists(text_summaries_pkl):
+        print(f"\t\tfile not exists:{text_summaries_pkl}")
+        exit(2)
+    else:
+        print(f"\t\tfile - ok: {text_summaries_pkl}")
+        with open(text_summaries_pkl, 'rb') as inp:
+            text_summaries = pickle.load(inp)
 
-# img_base64_list элементы
-if not os.path.exists(img_base64_list_pkl):
-    print(f"\t\tfile not exists:{img_base64_list_pkl}")
-    exit(2)
-else:
-    print(f"\t\tfile - ok: {img_base64_list_pkl}")
-    with open(img_base64_list_pkl, 'rb') as inp:
-        img_base64_list = pickle.load(inp)
+    # summary table элементы
+    if not os.path.exists(table_summaries_pkl):
+        print(f"\t\tfile not exists:{table_summaries_pkl}")
+        exit(2)
+    else:
+        print(f"\t\tfile - ok: {table_summaries_pkl}")
+        with open(table_summaries_pkl, 'rb') as inp:
+            table_summaries = pickle.load(inp)
 
-# summary image элементы
-if not os.path.exists(image_summaries_pkl):
-    print(f"\t\tfile not exists:{image_summaries_pkl}")
-    exit(2)
-else:
-    print(f"\t\tfile - ok: {image_summaries_pkl}")
-    with open(image_summaries_pkl, 'rb') as inp:
-        image_summaries = pickle.load(inp)
+    # img_base64_list элементы
+    if not os.path.exists(img_base64_list_pkl):
+        print(f"\t\tfile not exists:{img_base64_list_pkl}")
+        exit(2)
+    else:
+        print(f"\t\tfile - ok: {img_base64_list_pkl}")
+        with open(img_base64_list_pkl, 'rb') as inp:
+            img_base64_list = pickle.load(inp)
 
-# печать сэмплов данных
-n_saples=10
-if len(texts) > 0:
-        print(f"\tlen(texts)={len(texts)}")
-        print("\t", end="")
-        print(texts[:n_saples])
-if len(tables) > 0:
-        print(f"\tlen(tables)={len(tables)}")
-        print("\t", end="")
-        print(tables[:n_saples])
-# if len(texts_4k_token) > 0:
-#         print(f"\tlen(texts_4k_token)={len(texts_4k_token)}")
-#         print("\t", end="")
-#         print(texts_4k_token[:n_saples])
-if len(text_summaries) > 0:
-        print(f"\tlen(text_summaries)={len(text_summaries)}")
-        print("\t", end="")
-        print(text_summaries[:n_saples])
-if len(table_summaries) > 0:
-        print(f"\tlen(table_summaries)={len(table_summaries)}")
-        print("\t", end="")
-        print(table_summaries[:n_saples])
-if len(img_base64_list) > 0:
-        print(f"\tlen(img_base64_list)={len(img_base64_list)}")
-if len(image_summaries) > 0:
-        print(f"\tlen(image_summaries)={len(image_summaries)}")
-        print("\t", end="")
-        print(image_summaries[:n_saples])
+    # summary image элементы
+    if not os.path.exists(image_summaries_pkl):
+        print(f"\t\tfile not exists:{image_summaries_pkl}")
+        exit(2)
+    else:
+        print(f"\t\tfile - ok: {image_summaries_pkl}")
+        with open(image_summaries_pkl, 'rb') as inp:
+            image_summaries = pickle.load(inp)
+
+    print(f"\tпечать сэмплов данных")
+    # печать сэмплов данных
+    n_saples=10
+
+    if len(texts) > 0:
+            print(f"\t\tlen(texts)={len(texts)}")
+            print("\t", end="")
+            print(texts[:n_saples])
+
+    if len(tables) > 0:
+            print(f"\t\tlen(tables)={len(tables)}")
+            print("\t", end="")
+            print(tables[:n_saples])
+
+    if len(images) > 0:
+            print(f"\t\tlen(images)={len(images)}")
+            print("\t", end="")
+            print(images[:n_saples])
+
+    if len(text_summaries) > 0:
+            print(f"\t\tlen(text_summaries)={len(text_summaries)}")
+            print("\t", end="")
+            print(text_summaries[:n_saples])
+
+    if len(table_summaries) > 0:
+            print(f"\t\tlen(table_summaries)={len(table_summaries)}")
+            print("\t", end="")
+            print(table_summaries[:n_saples])
+
+    if len(img_base64_list) > 0:
+            print(f"\t\tlen(img_base64_list)={len(img_base64_list)}")
+
+    if len(image_summaries) > 0:
+            print(f"\t\tlen(image_summaries)={len(image_summaries)}")
+            print("\t", end="")
+            print(image_summaries[:n_saples])
 print(f"предобработка PDF-файла завершена")
