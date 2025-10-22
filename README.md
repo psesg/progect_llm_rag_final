@@ -46,8 +46,10 @@
          ``` 
 - установка библиотек Python (очень желательно установку производить в предварительно созданное виртуальное окружение)
   - для работы скрипта **_prepare.py_** достаточно установить библиотеки перечисленные в файле **_prequirements.txt_**
+  - на платформе Windows при наличии видеокарты Nvidia желательно установить Pytorch соответствующей версии, как указано ниже
   - ```sh
      $ pip install prequirements.txt
+     $ pip install torch==2.7.0 torchvision==0.22.0 torchaudio==2.7.0 --index-url https://download.pytorch.org/whl/cu118
      ``` 
   - для работы скрипта **_rag_deploy.py_** нужно установить библиотеки перечисленные в файле **_requirements.txt_**
   - ```sh
