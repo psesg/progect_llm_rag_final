@@ -296,7 +296,7 @@ def generate_text_summaries(texts, tables, summarize_texts=False):
         n_files = len(tables)
         n_file = 1
         for txt in tables:
-            print(f'\t\tsummarization table element{n_file} from {n_files}')
+            print(f'\t\tsummarization table element {n_file} from {n_files}')
             txt.update({'table_content': summarize_chain.invoke(txt['table_content'])})
             table_summaries.append(txt)
             n_file += 1
