@@ -218,7 +218,6 @@ def categorize_elements(raw_pdf_elements, source_document):
                 "page_number": page_number,          # Номер страницы, на которой находится изображение
                 "image_path": image_path             # Путь к изображению (если доступен)
             })
-        # logger.info(f'\t\telement.id = {str(element.id)}\ttype(element) = {str(type(element))}')
 
     return text_data, table_data, image_data # Возвращаем списки с текстами, таблицами и изображениями
 
@@ -285,15 +284,15 @@ def generate_text_summaries(texts, tables, summarize_texts=False):
     elif texts:
         # Если суммирование не требуется, просто передаем исходные тексты
         text_summaries = texts
-    logger.info(f'length texts = {len(texts)}\n\t\ttexts: <{texts}>\n\t\ttexts summaries: [{text_summaries}]')
+    logger.debug(f'length texts = {len(texts)}\n\t\ttexts: <{texts}>\n\t\ttexts summaries: [{text_summaries}]')
     # Если есть таблицы, выполняем их суммирование
     if tables:
-        # Выполняем параллельное суммирование таблиц
+        # Выполняем суммирование таблиц
         # table_summaries = summarize_chain.batch(tables, config={"max_concurrency":max_concurrency_workers })
         for txt in tables:
-            txt.update({'text': summarize_chain.invoke(txt['text'], config={"max_concurrency":max_concurrency_workers })})
+            txt.update({'table_content': summarize_chain.invoke(txt['table_content'], config={"max_concurrency":max_concurrency_workers })})
             table_summaries.append(txt)
-    logger.info(f'length tables = {len(tables)}\n\t\ttables: <{tables}>\n\t\ttables summaries: [{table_summaries}]')
+    logger.debug(f'length tables = {len(tables)}\n\t\ttables: <{tables}>\n\t\ttables summaries: [{table_summaries}]')
 
     return text_summaries, table_summaries  # Возвращаем результаты суммаризации
 
@@ -376,8 +375,7 @@ def image_summarize(img_base64, prompt, img_path):
         return msg.content
 
 
-
-def generate_img_summaries(path):
+def generate_img_summaries(images):
     """
     Функция для генерации суммаризаций изображений из указанной директории.
 
@@ -403,31 +401,23 @@ def generate_img_summaries(path):
     """
     #        - избегай вывода избыточной информации и малоизвестной терминологии, жаргонных слов и аббревиатур;
     #        - не начинай вывод описания со слова [описание].
-    # Обрабатываем все jpg файлы в указанной директории
-    list_files = []
-    for file in os.listdir(path):
-        if file.endswith(".jpg"):
-            list_files.append(file)
-    n_files = len(list_files)
-    n_file = 1
-    for img_file in sorted(list_files):
-        if img_file.endswith(".jpg"):  # Проверяем, что файл имеет расширение .jpg
-            img_path = os.path.join(path, img_file)  # Полный путь к изображению
-            is_file_reduced = False
-            # if os.path.getsize(img_path) > 350000: # will reduce size on 0.5 due ChatOpenAI error too long query
-            #     im = pil_image.open(img_path)
-            #     new_width = int((float(im.size[0]) * 0.5))
-            #     new_height = int((float(im.size[1]) * 0.5))
-            #     new_dimensions = (new_width, new_height)
-            #     resized_im = im.resize(new_dimensions, pil_image.LANCZOS)
-            #     im.close()
-            #     resized_im.save(img_path, optimize=True, quality=85)
-            #     is_file_reduced = True
-            base64_image = encode_image(img_path)  # Кодируем изображение в base64
-            img_base64_list.append(base64_image)  # Добавляем закодированное изображение в список
-            print(f"\timage processing \t#{n_file} from {n_files}\t{img_file}\t{is_file_reduced}\t{os.path.getsize(img_path)}", flush=True)
-            image_summaries.append(image_summarize(base64_image, prompt, img_path))  # Получаем суммаризацию изображения
-            n_file = n_file + 1
+
+    # Если есть изображения, выполняем их описание
+    if images:
+        n_files = len(images)
+        n_file = 1
+        for image in images:
+            img_path = image.get("image_path")
+            if os.path.exists(img_path):
+                logger.info(f'{n_file}\tfrom {n_files}\texecuting: {img_path}')
+                base64_image = encode_image(img_path)  # Кодируем изображение в base64
+                img_base64_list.append(base64_image)  # Добавляем закодированное изображение в список
+                image.update({'image_content': image_summarize(base64_image, prompt, img_path)})
+                image_summaries.append(image)
+                n_file += 1
+            else:
+                logger.warning(f'img_path not exist: {img_path}')
+    logger.debug(f'length images = {len(images)}\n\t\timages: <{images}>\n\t\timage summaries: [{image_summaries}]')
 
     return img_base64_list, image_summaries  # Возвращаем результаты
 
@@ -480,41 +470,19 @@ with open(tables_pkl, 'wb') as outp:
 print(f"суммаризация текстов и таблиц извлеченных из PDF-файла")
 # Вызываем функцию для суммаризации текстов и таблиц, указывая, что нужно суммировать тексты
 # text_summaries, table_summaries = generate_text_summaries(texts_4k_token, tables, summarize_texts=True)
-# text_summaries, table_summaries = generate_text_summaries(texts, tables, summarize_texts=True)
-# # сохраняем результаты для дальнейшего использования
-# with open(text_summaries_pkl, 'wb') as outp:
-#     pickle.dump(text_summaries, outp, pickle.HIGHEST_PROTOCOL)
-#
-# with open(table_summaries_pkl, 'wb') as outp:
-#     pickle.dump(table_summaries, outp, pickle.HIGHEST_PROTOCOL)
 
-# печать сэмплов данных
-n_saples=10
-if len(texts) >= 0:
-        print(f"\tlen(texts)={len(texts)}")
-        print("\t", end="")
-        print(texts[:n_saples])
-if len(tables) >= 0:
-        print(f"\tlen(tables)={len(tables)}")
-        print("\t", end="")
-        print(tables[:n_saples])
-# if len(text_summaries) >= 0:
-#         print(f"\tlen(text_summaries)={len(text_summaries)}")
-#         print("\t", end="")
-#         print(text_summaries[:n_saples])
-# if len(table_summaries) >= 0:
-#         print(f"\tlen(table_summaries)={len(table_summaries)}")
-#         print("\t", end="")
-#         print(table_summaries[:n_saples])
-if len(images) >= 0:
-        print(f"\tlen(images)={len(images)}")
-        print("\t", end="")
-        print(images[:n_saples])
-exit(10)
+text_summaries, table_summaries = generate_text_summaries(texts, tables, summarize_texts=True)
+# сохраняем результаты для дальнейшего использования
+with open(text_summaries_pkl, 'wb') as outp:
+    pickle.dump(text_summaries, outp, pickle.HIGHEST_PROTOCOL)
+
+with open(table_summaries_pkl, 'wb') as outp:
+    pickle.dump(table_summaries, outp, pickle.HIGHEST_PROTOCOL)
+
 ########################################################################################################################
 print(f"суммаризация изображений извлеченных из PDF-файла")
 # Вызываем функцию для генерации суммаризаций изображений
-img_base64_list, image_summaries = generate_img_summaries(image_block_output_dir)
+img_base64_list, image_summaries = generate_img_summaries(images)
 
 # сохраняем результаты для дальнейшего использования
 with open(img_base64_list_pkl, 'wb') as outp:
@@ -553,14 +521,14 @@ else:
     with open(tables_pkl, 'rb') as inp:
         tables = pickle.load(inp)
 
-# chank text элементы
-if not os.path.exists(texts_4k_token_pkl):
-    print(f"\t\tfile not exists:{texts_4k_token_pkl}")
-    exit(2)
-else:
-    print(f"\t\tfile - ok: {texts_4k_token_pkl}")
-    with open(texts_4k_token_pkl, 'rb') as inp:
-        texts_4k_token = pickle.load(inp)
+# # chank text элементы
+# if not os.path.exists(texts_4k_token_pkl):
+#     print(f"\t\tfile not exists:{texts_4k_token_pkl}")
+#     exit(2)
+# else:
+#     print(f"\t\tfile - ok: {texts_4k_token_pkl}")
+#     with open(texts_4k_token_pkl, 'rb') as inp:
+#         texts_4k_token = pickle.load(inp)
 
 # summary text элементы
 if not os.path.exists(text_summaries_pkl):
@@ -608,10 +576,10 @@ if len(tables) > 0:
         print(f"\tlen(tables)={len(tables)}")
         print("\t", end="")
         print(tables[:n_saples])
-if len(texts_4k_token) > 0:
-        print(f"\tlen(texts_4k_token)={len(texts_4k_token)}")
-        print("\t", end="")
-        print(texts_4k_token[:n_saples])
+# if len(texts_4k_token) > 0:
+#         print(f"\tlen(texts_4k_token)={len(texts_4k_token)}")
+#         print("\t", end="")
+#         print(texts_4k_token[:n_saples])
 if len(text_summaries) > 0:
         print(f"\tlen(text_summaries)={len(text_summaries)}")
         print("\t", end="")
