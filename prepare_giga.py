@@ -99,9 +99,6 @@ print(f"\t\t\t{tables_pkl}")
 images_pkl = os.path.join(path_to_pkl,"images_pkl.pkl")
 print(f"\t\t\t{images_pkl}")
 
-# texts_4k_token_pkl = os.path.join(path_to_pkl,"texts_4k_token_pkl.pkl")
-# print(f"\t\t\t{texts_4k_token_pkl}")
-
 text_summaries_pkl = os.path.join(path_to_pkl,"text_summaries_pkl.pkl")
 print(f"\t\t\t{text_summaries_pkl}")
 
@@ -234,7 +231,7 @@ def categorize_elements(raw_pdf_elements, source_document):
                 "page_number": page_number,          # Номер страницы, на которой находится изображение
                 "image_path": image_path             # Путь к изображению (если доступен)
             })
-
+    print(f'\t\tcategorized elements - text: {len(text_data)} table: {len(table_data)} image: {len(image_data)}')
     return text_data, table_data, image_data # Возвращаем списки с текстами, таблицами и изображениями
 
 # Функция для суммаризации текста и таблиц
@@ -461,6 +458,7 @@ if  len(params) == 0 or '-get_raw' in params:
     # сохраняем результаты для дальнейшего использования
     with open(raw_pdf_elements_pkl, 'wb') as outp:
         pickle.dump(raw_pdf_elements, outp, pickle.HIGHEST_PROTOCOL)
+    print(f'\t\textracted elements: {len(raw_pdf_elements)}')
 
 ########################################################################################################################
 if  len(params) == 0 or '-cat_txt_tbl_img' in params:
@@ -472,6 +470,8 @@ if  len(params) == 0 or '-cat_txt_tbl_img' in params:
         exit(2)
     else:
         # Категоризируем извлеченные элементы на текстовые и табличные с помощью функции categorize_elements
+        with open(raw_pdf_elements_pkl, 'rb') as inp:
+            raw_pdf_elements = pickle.load(inp)
         texts, tables, images = categorize_elements(raw_pdf_elements, report_path)
 
         # сохраняем результаты для дальнейшего использования
@@ -494,7 +494,7 @@ if  len(params) == 0 or '-sum_txt_tbl' in params:
         print(f"\t\tfile not exists:{texts_pkl}")
         exit(2)
     else:
-        print(f"\t\tfile - ok: {texts_pkl}")
+        # print(f"\t\tfile - ok: {texts_pkl}")
         with open(texts_pkl, 'rb') as inp:
             texts = pickle.load(inp)
 
@@ -503,7 +503,7 @@ if  len(params) == 0 or '-sum_txt_tbl' in params:
         print(f"\t\tfile not exists:{tables_pkl}")
         exit(2)
     else:
-        print(f"\t\tfile - ok: {tables_pkl}")
+        # print(f"\t\tfile - ok: {tables_pkl}")
         with open(tables_pkl, 'rb') as inp:
             tables = pickle.load(inp)
 
@@ -524,7 +524,7 @@ if  len(params) == 0 or '-sum_img' in params:
         print(f"\t\tfile not exists:{images_pkl}")
         exit(2)
     else:
-        print(f"\t\tfile - ok: {images_pkl}")
+        # print(f"\t\tfile - ok: {images_pkl}")
         with open(images_pkl, 'rb') as inp:
             images = pickle.load(inp)
     # Вызываем функцию для генерации суммаризаций изображений
@@ -620,34 +620,34 @@ if  len(params) == 0 or '-get_stat' in params:
 
     if len(texts) > 0:
             print(f"\t\tlen(texts)={len(texts)}")
-            print("\t", end="")
+            print("\t\t\t", end="")
             print(texts[:n_saples])
-
-    if len(tables) > 0:
-            print(f"\t\tlen(tables)={len(tables)}")
-            print("\t", end="")
-            print(tables[:n_saples])
-
-    if len(images) > 0:
-            print(f"\t\tlen(images)={len(images)}")
-            print("\t", end="")
-            print(images[:n_saples])
 
     if len(text_summaries) > 0:
             print(f"\t\tlen(text_summaries)={len(text_summaries)}")
-            print("\t", end="")
+            print("\t\t\t", end="")
             print(text_summaries[:n_saples])
+
+    if len(tables) > 0:
+            print(f"\t\tlen(tables)={len(tables)}")
+            print("\t\t\t", end="")
+            print(tables[:n_saples])
 
     if len(table_summaries) > 0:
             print(f"\t\tlen(table_summaries)={len(table_summaries)}")
-            print("\t", end="")
+            print("\t\t\t", end="")
             print(table_summaries[:n_saples])
 
-    if len(img_base64_list) > 0:
-            print(f"\t\tlen(img_base64_list)={len(img_base64_list)}")
+    if len(images) > 0:
+            print(f"\t\tlen(images)={len(images)}")
+            print("\t\t\t", end="")
+            print(images[:n_saples])
 
     if len(image_summaries) > 0:
             print(f"\t\tlen(image_summaries)={len(image_summaries)}")
-            print("\t", end="")
+            print("\t\t\t", end="")
             print(image_summaries[:n_saples])
+
+    if len(img_base64_list) > 0:
+            print(f"\t\tlen(img_base64_list)={len(img_base64_list)}")
 print(f"предобработка PDF-файла завершена")
