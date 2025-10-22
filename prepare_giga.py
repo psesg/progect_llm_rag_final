@@ -21,7 +21,7 @@ from giga_util import get_giga_credentials, get_giga_url_access_mode, get_giga_t
 
 # set logging level - for logging to file add: filename='myapp.log',
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO, format='\t\t%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.WARNING, format='\t\t%(asctime)s - %(levelname)s - %(message)s')
 
 if not sys.warnoptions:
     warnings.simplefilter("ignore") # default Change the filter in this process
@@ -278,9 +278,13 @@ def generate_text_summaries(texts, tables, summarize_texts=False):
     if texts and summarize_texts:
         # Выполняем суммирование текстов
         #text_summaries = summarize_chain.batch(texts, config={"max_concurrency":max_concurrency_workers })
+        n_files = len(texts)
+        n_file = 1
         for txt in texts:
-            txt.update({'text': summarize_chain.invoke(txt['text'], config={"max_concurrency":max_concurrency_workers })})
+            print(f'\t\tsummarization text element {n_file} from {n_files}')
+            txt.update({'text': summarize_chain.invoke(txt['text'])})
             text_summaries.append(txt)
+            n_file += 1
     elif texts:
         # Если суммирование не требуется, просто передаем исходные тексты
         text_summaries = texts
@@ -289,9 +293,13 @@ def generate_text_summaries(texts, tables, summarize_texts=False):
     if tables:
         # Выполняем суммирование таблиц
         # table_summaries = summarize_chain.batch(tables, config={"max_concurrency":max_concurrency_workers })
+        n_files = len(tables)
+        n_file = 1
         for txt in tables:
-            txt.update({'table_content': summarize_chain.invoke(txt['table_content'], config={"max_concurrency":max_concurrency_workers })})
+            print(f'\t\tsummarization table element{n_file} from {n_files}')
+            txt.update({'table_content': summarize_chain.invoke(txt['table_content'])})
             table_summaries.append(txt)
+            n_file += 1
     logger.debug(f'length tables = {len(tables)}\n\t\ttables: <{tables}>\n\t\ttables summaries: [{table_summaries}]')
 
     return text_summaries, table_summaries  # Возвращаем результаты суммаризации
@@ -409,7 +417,7 @@ def generate_img_summaries(images):
         for image in images:
             img_path = image.get("image_path")
             if os.path.exists(img_path):
-                logger.info(f'{n_file}\tfrom {n_files}\texecuting: {img_path}')
+                print(f'\t\tsummarization image element {n_file} from {n_files}: {img_path}')
                 base64_image = encode_image(img_path)  # Кодируем изображение в base64
                 img_base64_list.append(base64_image)  # Добавляем закодированное изображение в список
                 image.update({'image_content': image_summarize(base64_image, prompt, img_path)})
