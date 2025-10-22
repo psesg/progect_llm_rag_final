@@ -77,7 +77,7 @@ else:
 # пути к файлам
 print(f"настройка путей входных/выходных файлов")
 # debug code on alt_sources_energy.pdf work real on Sber2023.pdf
-report_path = "source_pdf_report/alt_sources_energy.pdf" #Sber2023.pdf alt_sources_energy.pdf
+report_path = "source_pdf_report/Sber2023.pdf" #Sber2023.pdf alt_sources_energy.pdf
 print(f"\t\tвходной файл: {report_path}")
 if giga:
     image_block_output_dir = "./giga_extracted_images"
@@ -614,39 +614,39 @@ if  len(params) == 0 or '-get_stat' in params:
         with open(image_summaries_pkl, 'rb') as inp:
             image_summaries = pickle.load(inp)
 
-    print(f"\tпечать сэмплов данных")
     # печать сэмплов данных
-    n_saples=10
+    n_samples = 10
+    print(f"\tпечать сэмплов данных [:{n_samples}]")
 
     if len(texts) > 0:
             print(f"\t\tlen(texts)={len(texts)}")
             print("\t\t\t", end="")
-            print(texts[:n_saples])
+            print(texts[:n_samples])
 
     if len(text_summaries) > 0:
             print(f"\t\tlen(text_summaries)={len(text_summaries)}")
             print("\t\t\t", end="")
-            print(text_summaries[:n_saples])
+            print(text_summaries[:n_samples])
 
     if len(tables) > 0:
             print(f"\t\tlen(tables)={len(tables)}")
             print("\t\t\t", end="")
-            print(tables[:n_saples])
+            print(tables[:n_samples])
 
     if len(table_summaries) > 0:
             print(f"\t\tlen(table_summaries)={len(table_summaries)}")
             print("\t\t\t", end="")
-            print(table_summaries[:n_saples])
+            print(table_summaries[:n_samples])
 
     if len(images) > 0:
             print(f"\t\tlen(images)={len(images)}")
             print("\t\t\t", end="")
-            print(images[:n_saples])
+            print(images[:n_samples])
 
     if len(image_summaries) > 0:
             print(f"\t\tlen(image_summaries)={len(image_summaries)}")
             print("\t\t\t", end="")
-            print(image_summaries[:n_saples])
+            print(image_summaries[:n_samples])
 
     if len(img_base64_list) > 0:
             print(f"\t\tlen(img_base64_list)={len(img_base64_list)}")
