@@ -1,13 +1,11 @@
 # -*- coding: utf-8 -*-
-import unstructured.documents.elements
+
 from unstructured.documents.elements import NarrativeText, Table, Image
 from unstructured.partition.pdf import partition_pdf
-from langchain.text_splitter import CharacterTextSplitter
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage
 from langchain_core.output_parsers import StrOutputParser
-from PIL import Image as pil_image
 import sys
 import os
 import pickle
@@ -29,9 +27,24 @@ if not sys.warnoptions:
 
 warnings.filterwarnings('ignore', category=DeprecationWarning)
 
+########################################################################################################################
+# точка входа - обработка параметров запуска
+########################################################################################################################
+# read and append to list run parameters
+params = []
+allowed_params = ['-get_raw', '-cat_txt_tbl_img', '-sum_txt_tbl', '-sum_img', '-get_stat']
+strStart = sys.argv[0]
+if len(sys.argv) > 1:
+    for count, value in enumerate(sys.argv):
+        if count > 0:
+            params.append(value.lower())
+# check run parameters
+if len(params) > 0  and not set(params).issubset(allowed_params):
+    print(f'Error - got unknown key(s): {list(set(params) - set(allowed_params))}\nExit script!')
+    exit(10)
+
 print(f"получение параметров подключения к GigaChat")
 giga = True
-
 model_giga = "GigaChat-2-Max" # "GigaChat-2-Pro"
 # GigaChat-2-Max
 # GigaChat-Max
@@ -433,20 +446,7 @@ def generate_img_summaries(images):
     return img_base64_list, image_summaries  # Возвращаем результаты
 
 ########################################################################################################################
-# точка входа - начало реальной обработки файла
-########################################################################################################################
-# read and append to list run parameters
-params = []
-allowed_params = ['-get_raw', '-cat_txt_tbl_img', '-sum_txt_tbl', '-sum_img', '-get_stat']
-strStart = sys.argv[0]
-if len(sys.argv) > 1:
-    for count, value in enumerate(sys.argv):
-        if count > 0:
-            params.append(value.lower())
-# check run parameters
-if len(params) > 0  and not set(params).issubset(allowed_params):
-    print(f'Error - got unknown key(s): {list(set(params) - set(allowed_params))}\nExit script!')
-    exit(10)
+# начало реальной обработки файла
 ########################################################################################################################
 if  len(params) == 0 or '-get_raw' in params:
 
