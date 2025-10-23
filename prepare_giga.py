@@ -56,6 +56,12 @@ if len(params) > 0  and not set(params).issubset(allowed_params):
     print(f'Error - got unknown key(s): {list(set(params) - set(allowed_params))}\nExit script!')
     exit(10)
 
+# debug code on alt_sources_energy.pdf work real on Sber2023.pdf
+report_path = "source_pdf_report/alt_sources_energy.pdf" #Sber2023.pdf alt_sources_energy.pdf
+print(f"preprocessing input PDF file: {report_path}")
+gl_start_datetime = datetime.datetime.now()
+print(f"{gl_start_datetime.strftime('%Y.%m.%d %H:%M:%S')} ->: begin preprocessing input PDF file: {report_path}")
+
 print(f"getting connection parameters to GigaChat")
 giga = True
 model_giga = "GigaChat-2-Max" # "GigaChat-2-Pro"
@@ -88,10 +94,7 @@ else:
     max_concurrency_workers = 5
 
 # пути к файлам
-print(f"setting up input/output file paths")
-# debug code on alt_sources_energy.pdf work real on Sber2023.pdf
-report_path = "source_pdf_report/alt_sources_energy.pdf" #Sber2023.pdf alt_sources_energy.pdf
-print(f"\t\tinput file: {report_path}")
+print(f"setting up output file paths")
 if giga:
     image_block_output_dir = "./giga_extracted_images"
     path_to_pkl = "./giga_pickles"
@@ -575,9 +578,9 @@ if  len(params) == 0 or '-sum_img' in params:
 
 ########################################################################################################################
 if  len(params) == 0 or '-get_stat' in params:
-    print(f"вывод статистики предобработки PDF-файла:")
-
-    print(f"\tпроверка сохраненных  pkl файлов")
+    start_datetime = datetime.datetime.now()
+    print(f"{start_datetime.strftime('%Y.%m.%d %H:%M:%S')} ->: begin PDF file preprocessing statistics output")
+    print(f"\tchecking saved PKL files")
 
     # raw элементы
     if not os.path.exists(raw_pdf_elements_pkl):
@@ -653,7 +656,7 @@ if  len(params) == 0 or '-get_stat' in params:
 
     # печать сэмплов данных
     n_samples = 10
-    print(f"\tпечать сэмплов данных [:{n_samples}]")
+    print(f"\tprinting data samples [:{n_samples}]")
 
     if len(texts) > 0:
             print(f"\t\tlen(texts)={len(texts)}")
@@ -687,4 +690,15 @@ if  len(params) == 0 or '-get_stat' in params:
 
     if len(img_base64_list) > 0:
             print(f"\t\tlen(img_base64_list)={len(img_base64_list)}")
-print(f"предобработка PDF-файла завершена")
+    datetime_finish = datetime.datetime.now()
+    delta_sec = date_diff_in_seconds(datetime_finish, start_datetime)
+    el_d, el_h, el_m, el_s = dhms_from_seconds(delta_sec)
+    print(f"{datetime_finish.strftime('%Y.%m.%d %H:%M:%S')} ->: end PDF file preprocessing statistics output in "
+          f"{el_d} days {el_h} hours {el_m} min {el_s} sec")
+
+gl_datetime_finish = datetime.datetime.now()
+delta_sec = date_diff_in_seconds(gl_datetime_finish, gl_start_datetime)
+el_d, el_h, el_m, el_s = dhms_from_seconds(delta_sec)
+print(f"{gl_datetime_finish.strftime('%Y.%m.%d %H:%M:%S')} ->: preprocessing PDF file: {report_path} completed in "
+      f"{el_d} days {el_h} hours {el_m} min {el_s} sec")
+
