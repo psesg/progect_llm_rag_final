@@ -16,6 +16,7 @@ import time
 import requests
 import logging
 from giga_util import get_giga_credentials, get_giga_url_access_mode, get_giga_token_access
+import datetime
 
 # set logging level - for logging to file add: filename='myapp.log',
 logger = logging.getLogger(__name__)
@@ -26,6 +27,18 @@ if not sys.warnoptions:
     os.environ["PYTHONWARNINGS"] = "ignore" # ignore Also affect subprocesses
 
 warnings.filterwarnings('ignore', category=DeprecationWarning)
+
+# block for measure elapsed time
+def date_diff_in_seconds(dt2: datetime, dt1: datetime):
+    timedelta = dt2 - dt1
+    return timedelta.days * 24 * 3600 + timedelta.seconds
+
+
+def dhms_from_seconds(seconds):
+    minutes, seconds = divmod(seconds, 60)
+    hours, minutes = divmod(minutes, 60)
+    days, hours = divmod(hours, 24)
+    return days, hours, minutes, seconds
 
 ########################################################################################################################
 # точка входа - обработка параметров запуска
@@ -43,7 +56,7 @@ if len(params) > 0  and not set(params).issubset(allowed_params):
     print(f'Error - got unknown key(s): {list(set(params) - set(allowed_params))}\nExit script!')
     exit(10)
 
-print(f"получение параметров подключения к GigaChat")
+print(f"getting connection parameters to GigaChat")
 giga = True
 model_giga = "GigaChat-2-Max" # "GigaChat-2-Pro"
 # GigaChat-2-Max
@@ -75,18 +88,18 @@ else:
     max_concurrency_workers = 5
 
 # пути к файлам
-print(f"настройка путей входных/выходных файлов")
+print(f"setting up input/output file paths")
 # debug code on alt_sources_energy.pdf work real on Sber2023.pdf
 report_path = "source_pdf_report/alt_sources_energy.pdf" #Sber2023.pdf alt_sources_energy.pdf
-print(f"\t\tвходной файл: {report_path}")
+print(f"\t\tinput file: {report_path}")
 if giga:
     image_block_output_dir = "./giga_extracted_images"
     path_to_pkl = "./giga_pickles"
 else:
     image_block_output_dir = "./extracted_images"
     path_to_pkl = "./pickles"
-print(f"\t\tпуть к файлам извлеченных изображений: {image_block_output_dir}")
-print(f"\t\tвыходные PKL файлы")
+print(f"\t\tpath to the extracted image files: {image_block_output_dir}")
+print(f"\t\toutput PKL files")
 raw_pdf_elements_pkl = os.path.join(path_to_pkl,"raw_pdf_elements_pkl.pkl")
 print(f"\t\t\t{raw_pdf_elements_pkl}")
 
@@ -231,7 +244,7 @@ def categorize_elements(raw_pdf_elements, source_document):
                 "page_number": page_number,          # Номер страницы, на которой находится изображение
                 "image_path": image_path             # Путь к изображению (если доступен)
             })
-    print(f'\t\tcategorized elements - text: {len(text_data)} table: {len(table_data)} image: {len(image_data)}')
+
     return text_data, table_data, image_data # Возвращаем списки с текстами, таблицами и изображениями
 
 # Функция для суммаризации текста и таблиц
@@ -446,8 +459,8 @@ def generate_img_summaries(images):
 # начало реальной обработки файла
 ########################################################################################################################
 if  len(params) == 0 or '-get_raw' in params:
-
-    print(f"извлечениe элементов из PDF-файла: {report_path}")
+    start_datetime = datetime.datetime.now()
+    print(f"{start_datetime.strftime('%Y.%m.%d %H:%M:%S')} ->: begin extract elements from PDF file: {report_path}")
     if not os.path.exists(report_path):
         print(f"file for processing not exists:{report_path}")
         exit(1)
@@ -458,12 +471,18 @@ if  len(params) == 0 or '-get_raw' in params:
     # сохраняем результаты для дальнейшего использования
     with open(raw_pdf_elements_pkl, 'wb') as outp:
         pickle.dump(raw_pdf_elements, outp, pickle.HIGHEST_PROTOCOL)
-    print(f'\t\textracted elements: {len(raw_pdf_elements)}')
+    print(f'\t\telements extracted: {len(raw_pdf_elements)}')
+    # end main cycle of check
+    datetime_finish = datetime.datetime.now()
+    delta_sec = date_diff_in_seconds(datetime_finish, start_datetime)
+    el_d, el_h, el_m, el_s = dhms_from_seconds(delta_sec)
+    print(f"{datetime_finish.strftime('%Y.%m.%d %H:%M:%S')} ->: end extraction in "
+          f"{el_d} days {el_h} hours {el_m} min {el_s} sec")
 
 ########################################################################################################################
 if  len(params) == 0 or '-cat_txt_tbl_img' in params:
-
-    print(f"категоризация texts, tables, images элементов извлеченных из PDF-файла")
+    start_datetime = datetime.datetime.now()
+    print(f"{start_datetime.strftime('%Y.%m.%d %H:%M:%S')} ->: begin categorization text/tables/image elements")
     # raw элементы
     if not os.path.exists(raw_pdf_elements_pkl):
         print(f"\t\tfile not exists:{raw_pdf_elements_pkl}")
@@ -483,11 +502,17 @@ if  len(params) == 0 or '-cat_txt_tbl_img' in params:
 
         with open(images_pkl, 'wb') as outp:
             pickle.dump(images, outp, pickle.HIGHEST_PROTOCOL)
+        print(f'\t\tcategorized elements - text: {len(texts)} table: {len(tables)} image: {len(images)}')
+    datetime_finish = datetime.datetime.now()
+    delta_sec = date_diff_in_seconds(datetime_finish, start_datetime)
+    el_d, el_h, el_m, el_s = dhms_from_seconds(delta_sec)
+    print(f"{datetime_finish.strftime('%Y.%m.%d %H:%M:%S')} ->: end categorization in "
+          f"{el_d} days {el_h} hours {el_m} min {el_s} sec")
 
 ########################################################################################################################
 if  len(params) == 0 or '-sum_txt_tbl' in params:
-
-    print(f"суммаризация текстов и таблиц извлеченных из PDF-файла")
+    start_datetime = datetime.datetime.now()
+    print(f"{start_datetime.strftime('%Y.%m.%d %H:%M:%S')} ->: begin summarization text/table elements")
     # Вызываем функцию для суммаризации текстов и таблиц, указывая, что нужно суммировать тексты
     # text элементы
     if not os.path.exists(texts_pkl):
@@ -514,11 +539,17 @@ if  len(params) == 0 or '-sum_txt_tbl' in params:
 
     with open(table_summaries_pkl, 'wb') as outp:
         pickle.dump(table_summaries, outp, pickle.HIGHEST_PROTOCOL)
+    print(f'\t\tsummarized elements - text: {len(text_summaries)} table: {len(table_summaries)}')
+    datetime_finish = datetime.datetime.now()
+    delta_sec = date_diff_in_seconds(datetime_finish, start_datetime)
+    el_d, el_h, el_m, el_s = dhms_from_seconds(delta_sec)
+    print(f"{datetime_finish.strftime('%Y.%m.%d %H:%M:%S')} ->: end summarization text/table elements in "
+          f"{el_d} days {el_h} hours {el_m} min {el_s} sec")
 
 ########################################################################################################################
 if  len(params) == 0 or '-sum_img' in params:
-
-    print(f"суммаризация изображений извлеченных из PDF-файла")
+    start_datetime = datetime.datetime.now()
+    print(f"{start_datetime.strftime('%Y.%m.%d %H:%M:%S')} ->: begin summarization image elements")
     # summary image элементы
     if not os.path.exists(images_pkl):
         print(f"\t\tfile not exists:{images_pkl}")
@@ -535,6 +566,12 @@ if  len(params) == 0 or '-sum_img' in params:
         pickle.dump(img_base64_list, outp, pickle.HIGHEST_PROTOCOL)
     with open(image_summaries_pkl, 'wb') as outp:
         pickle.dump(image_summaries, outp, pickle.HIGHEST_PROTOCOL)
+    print(f'\t\tsummarized elements - image: {len(image_summaries_pkl)} created img_base64_list: {len(img_base64_list)}')
+    datetime_finish = datetime.datetime.now()
+    delta_sec = date_diff_in_seconds(datetime_finish, start_datetime)
+    el_d, el_h, el_m, el_s = dhms_from_seconds(delta_sec)
+    print(f"{datetime_finish.strftime('%Y.%m.%d %H:%M:%S')} ->: end summarization image elements in "
+          f"{el_d} days {el_h} hours {el_m} min {el_s} sec")
 
 ########################################################################################################################
 if  len(params) == 0 or '-get_stat' in params:
