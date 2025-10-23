@@ -58,7 +58,6 @@ if len(params) > 0  and not set(params).issubset(allowed_params):
 
 # debug code on alt_sources_energy.pdf work real on Sber2023.pdf
 report_path = "source_pdf_report/alt_sources_energy.pdf" #Sber2023.pdf alt_sources_energy.pdf
-print(f"preprocessing input PDF file: {report_path}")
 gl_start_datetime = datetime.datetime.now()
 print(f"{gl_start_datetime.strftime('%Y.%m.%d %H:%M:%S')} ->: begin preprocessing input PDF file: {report_path}")
 
