@@ -20,6 +20,8 @@ from langchain_core.messages import HumanMessage
 from langchain_openai import ChatOpenAI
 from langchain_core.output_parsers import StrOutputParser
 import streamlit as st
+import logging
+from giga_util import get_giga_credentials, get_giga_url_access_mode, get_giga_token_access
 
 if platform.system() == "Linux": # or platform.system() == "Darwin"
     # next lines for fix streamlit: Your system has an unsupported version of sqlite3.
@@ -28,18 +30,68 @@ if platform.system() == "Linux": # or platform.system() == "Darwin"
     import sys
     sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
 
-warnings.filterwarnings('ignore')
+# set logging level - for logging to file add: filename='myapp.log',
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.WARNING, format='\t\t%(asctime)s - %(levelname)s - %(message)s')
+
+if not sys.warnoptions:
+    warnings.simplefilter("ignore") # default Change the filter in this process
+    os.environ["PYTHONWARNINGS"] = "ignore" # ignore Also affect subprocesses
+
+warnings.filterwarnings('ignore', category=DeprecationWarning)
 
 # published on https://pse-project-rag-pure.streamlit.app/
 # admin application via HitHub account  on https://share.streamlit.io/
+giga = True
+model_giga = "GigaChat-2-Max" # "GigaChat-2-Pro"
+if giga:
+    max_concurrency_workers = 1
+    credentials = get_giga_credentials()
+    if credentials == '':
+        logger.critical('OS variable: GIGACHAT_CREDENTIALS not set')
+        exit(1)
+    # get url_oauth and access_mode
+    url_oauth, access_mode = get_giga_url_access_mode()
+    rc, tk = get_giga_token_access(url_oauth, credentials)
+    if rc:
+        payload = {}
+        headers = {
+            'Accept': 'application/json',
+            'Authorization': f'Bearer {tk}'
+        }
+    else:
+        logger.critical('Can''t get authorization token to GigaChat')
+        exit(1)
 
 # пути к файлам
-texts_pkl = "./pickles/texts_4k_token_pkl.pkl"     # "./pickles/texts_pkl.pkl"
-text_summaries_pkl = "./pickles/text_summaries_pkl.pkl"
-tables_pkl = "./pickles/tables_pkl.pkl"
-table_summaries_pkl = "./pickles/table_summaries_pkl.pkl"
-img_base64_list_pkl = "./pickles/img_base64_list.pkl"
-image_summaries_pkl = "./pickles/image_summaries_pkl.pkl"
+print(f"setting up output file paths")
+if giga:
+    image_block_output_dir = "./giga_extracted_images"
+    path_to_pkl = "./giga_pickles"
+else:
+    image_block_output_dir = "./extracted_images"
+    path_to_pkl = "./pickles"
+
+# пути к файлам
+
+texts_pkl = os.path.join(path_to_pkl,"texts_pkl.pkl")
+print(f"\t\t\t{texts_pkl}")
+
+tables_pkl = os.path.join(path_to_pkl,"tables_pkl.pkl")
+print(f"\t\t\t{tables_pkl}")
+
+text_summaries_pkl = os.path.join(path_to_pkl,"text_summaries_pkl.pkl")
+print(f"\t\t\t{text_summaries_pkl}")
+
+table_summaries_pkl = os.path.join(path_to_pkl,"table_summaries_pkl.pkl")
+print(f"\t\t\t{table_summaries_pkl}")
+
+img_base64_list_pkl = os.path.join(path_to_pkl,"img_base64_list.pkl")
+print(f"\t\t\t{img_base64_list_pkl}")
+
+image_summaries_pkl = os.path.join(path_to_pkl,"image_summaries_pkl.pkl")
+print(f"\t\t\t{image_summaries_pkl}")
+
 model = "gpt-4o"   # "gpt-3.5-turbo"
 
 # получение имения хоста и платформы для дальнейшего вывода
@@ -210,22 +262,6 @@ def split_image_text_types(docs):
     return {"images": b64_images, "texts": texts}
 
 
-def split_image_text_types_worag(docs):
-    """
-    Разделяет документы на изображения и текстовые данные.
-
-    Аргументы:
-    docs: Список документов, содержащих изображения (в формате base64) и текст.
-
-    Возвращает:
-    Для варианта фнукции без RAG Словарь с двумя пустыми списками.
-    """
-    b64_images = []
-    texts = []
-
-    return {"images": b64_images, "texts": texts}
-
-
 # Функция формирования запроса для модели с учетом изображений и текста
 def img_prompt_func(data_dict):
     """
@@ -295,52 +331,13 @@ def multi_modal_rag_chain(retriever):
 
     return chain
 
-def multi_modal_worag_chain(retriever):
-    """
-    Создает RAG цепочку для работы с мультимодальными запросами, включая текст и изображения.
-
-    Аргументы:
-    retriever: Ритривер для получения данных.
-
-    Возвращает:
-    Цепочка для обработки запросов с учетом текста и изображений.
-    """
-    # OpenAI API ключ в os.environ["OPENAI_API_KEY"]
-    gen_ai_model = ChatOpenAI(temperature=0, model=model, max_tokens=3000)
-    # Определяем цепочку обработки запросов
-    chain = (
-        {
-            "context": RunnableLambda(split_image_text_types_worag),
-            "question": RunnablePassthrough(),
-        }
-        | RunnableLambda(img_prompt_func)
-        | gen_ai_model
-        | StrOutputParser()
-    )
-
-    return chain
 
 ########################################################################################################################
 # точка входа - начало отрисовки WEB-морды
 ########################################################################################################################
-
 print(f"начало отрисовки WEB-морды")
-# включение/выключение RAG и вывод информации о проекте
-rag_mode = True
-if "rag_mode" not in st.session_state:
-    st.session_state["rag_mode"] = True
-else:
-    rag_mode = st.session_state["rag_mode"]
 
-if "rag_mode" in st.session_state:
-    rag_mode = st.checkbox("RAG", value=st.session_state["rag_mode"])
-    st.session_state["rag_mode"] = rag_mode
-
-if rag_mode:
-    st.title(":red[GPT]+:green[RAG]+:blue[Streamlit]:red[=Great!]:smiley:")
-else:
-    st.title(":red[GPT]+:blue[Streamlit]:red[=Good]:confused:")
-
+st.title(":red[GPT]+:green[RAG]+:blue[Streamlit]:red[=Great!]:smiley:")
 st.write("**Cource: :blue[LLM's - from architecture to building multimodal systems]**")
 st.write("**2025.09.22 Panarin S.E. - project :green[Multimodal RAG system]**")
 st.write(f"host: :blue[{hostname}] OS: :blue[{plat}] model: :red[{model}]")
@@ -427,11 +424,6 @@ def create_chain_multimodal_rag():
     print(f"\t\tсоздаем RAG цепочку с использованием ретривера")
     return multi_modal_rag_chain(retriever_multi_vector_img)
 
-@st.cache_resource
-def create_chain_multimodal_worag():
-    print(f"\t\tсоздаем цепочку без RAG с использованием ретривера")
-    return multi_modal_worag_chain(retriever_multi_vector_img)
-
 print(f"создание или загрузка из cache_resource объектов векторного хранилища, ретривера и RAG цепочки" )
 vectorstore = create_vectorstore()
 retriever_multi_vector_img = create_retriever_multi_vector_img()
@@ -439,14 +431,10 @@ chain_multimodal_rag = create_chain_multimodal_rag()
 chain_multimodal_worag = create_chain_multimodal_worag()
 
 ########################################################################################################################
-# работа с LLM с RAG либо без него
+# работа с LLM с RAG
 ########################################################################################################################
 hello = "Привет! Готов отвечать на любые вопросы - спрашивай!"
 print(f"{hello}")
-# системный промпт для варианта без RAG
-sysp = ("Ты — эксперт и аналитик, выдающий ответ/заключение на заданный вопрос, тему. Если конкретной информации на"
-        " заданный вопрос или тему нет или недостаточно, то ничего не придумывай, просто ответь, что у тебя нет"
-        " информации или ее недостаточно. ")
 
 # Initialize chat history
 if "messages" not in st.session_state:
@@ -468,10 +456,7 @@ if prompt := st.chat_input(hello,
         st.markdown(prompt.text)
     # Display assistant response in chat message container
     with st.chat_message("assistant"):
-        if rag_mode:
-            resp = chain_multimodal_rag.invoke(str(st.session_state.messages))     # .invoke(str(prompt))
-        else:
-            resp = chain_multimodal_worag.invoke(sysp + str(st.session_state.messages)) # .invoke(sysp + str(prompt))
+        resp = chain_multimodal_rag.invoke(str(st.session_state.messages))     # .invoke(str(prompt))
         print(resp)
         st.write(resp)
     st.session_state.messages.append({"role": "assistant", "content": resp})
