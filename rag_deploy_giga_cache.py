@@ -23,6 +23,7 @@ from langchain_core.output_parsers import StrOutputParser
 import streamlit as st
 import logging
 from giga_util import get_giga_credentials, get_giga_url_access_mode, get_giga_token_access
+from langchain_gigachat.embeddings.gigachat import GigaChatEmbeddings
 
 if platform.system() == "Linux": # or platform.system() == "Darwin"
     # next lines for fix streamlit: Your system has an unsupported version of sqlite3.
@@ -46,7 +47,6 @@ warnings.filterwarnings('ignore', category=DeprecationWarning)
 giga = True
 model_giga = "GigaChat-2-Max" # "GigaChat-2-Pro"
 if giga:
-    max_concurrency_workers = 1
     credentials = get_giga_credentials()
     if credentials == '':
         logger.critical('OS variable: GIGACHAT_CREDENTIALS not set')
@@ -116,11 +116,14 @@ def add_document_to_retr(retriever: MultiVectorRetriever, doc_summaries, doc_con
     id_key = "doc_id"  # Ключ для идентификации документов в хранилище
     # Создаем документы для векторного хранилища из суммаризаций
     summary_docs = [
-        Document(page_content=s, metadata={id_key: doc_ids[i]})
+        Document(page_content=s.get('text'), metadata={id_key: doc_ids[i]})
         for i, s in enumerate(doc_summaries)
     ]
     #print(summary_docs[:1])
+
+    print(summary_docs[:3])
     # Добавляем документы в векторное хранилище
+
     retriever.vectorstore.add_documents(summary_docs)
 
     # Добавляем метаданные документов в хранилище
@@ -338,51 +341,51 @@ def multi_modal_rag_chain(retriever):
 ########################################################################################################################
 print(f"начало отрисовки WEB-морды")
 
-st.title(":red[GPT]+:green[RAG]+:blue[Streamlit]:red[=Great!]:smiley:")
-st.write("**Cource: :blue[LLM's - from architecture to building multimodal systems]**")
-st.write("**2025.09.22 Panarin S.E. - project :green[Multimodal RAG system]**")
-st.write(f"host: :blue[{hostname}] OS: :blue[{plat}] model: :red[{model}]")
-
-if st.button("Reset dialog"):
-    # clear chat history
-    if "messages" in st.session_state:
-        st.session_state.messages.clear()
+# st.title(":red[GPT]+:green[RAG]+:blue[Streamlit]:red[=Great!]:smiley:")
+# st.write("**Cource: :blue[LLM's - from architecture to building multimodal systems]**")
+# st.write("**2025.09.22 Panarin S.E. - project :green[Multimodal RAG system]**")
+# st.write(f"host: :blue[{hostname}] OS: :blue[{plat}] model: :red[{model}]")
+#
+# if st.button("Reset dialog"):
+#     # clear chat history
+#     if "messages" in st.session_state:
+#         st.session_state.messages.clear()
 
 ########################################################################################################################
 # при первом запуске данные считываем из pkl файлов с диска при обновлении WEB страницы - из cache_data
 ########################################################################################################################
 # new variant
-@st.cache_data
+#@st.cache_data
 def load_texts():
     with open(texts_pkl, 'rb') as inp:
         print(f"\t\tfile loaded - ok: {texts_pkl}")
         return pickle.load(inp)
 
-@st.cache_data
+#@st.cache_data
 def load_tables():
     with open(tables_pkl, 'rb') as inp:
         print(f"\t\tfile loaded - ok: {tables_pkl}")
         return pickle.load(inp)
 
-@st.cache_data
+#@st.cache_data
 def load_text_summaries():
     with open(text_summaries_pkl, 'rb') as inp:
         print(f"\t\tfile loaded - ok: {text_summaries_pkl}")
         return pickle.load(inp)
 
-@st.cache_data
+#@st.cache_data
 def load_table_summaries():
     with open(table_summaries_pkl, 'rb') as inp:
         print(f"\t\tfile loaded - ok: {table_summaries_pkl}")
         return pickle.load(inp)
 
-@st.cache_data
+#@st.cache_data
 def load_img_base64_list():
     with open(img_base64_list_pkl, 'rb') as inp:
         print(f"\t\tfile loaded - ok: {img_base64_list_pkl}")
         return pickle.load(inp)
 
-@st.cache_data
+#@st.cache_data
 def load_image_summaries():
     with open(image_summaries_pkl, 'rb') as inp:
         print(f"\t\tfile loaded - ok: {image_summaries_pkl}")
@@ -399,15 +402,20 @@ image_summaries = load_image_summaries()
 # начало реального запуска RAG-pipeline
 # создание или загрузка из cache_resource объектов векторного хранилища, ретривера и RAG цепочки
 ########################################################################################################################
-@st.cache_resource
+#@st.cache_resource
 def create_vectorstore():
     print(f"\t\tсоздаем векторное хранилище")
     return Chroma(
         collection_name="pse_rag_sber_report",  # Название коллекции
-        embedding_function=OpenAIEmbeddings(),  # Функция для создания векторных представлений
+        embedding_function=GigaChatEmbeddings(
+            credentials=credentials,
+            scope="GIGACHAT_API_CORP",
+            verify_ssl_certs=False,
+        )
+        #embedding_function=OpenAIEmbeddings(),  # Функция для создания векторных представлений
     )
 
-@st.cache_resource
+#@st.cache_resource
 def create_retriever_multi_vector_img():
     print(f"\t\tсоздаем ретривер и добавляем суммаризации текстов, таблиц и изображений")
     return create_multi_vector_retriever(
@@ -420,7 +428,7 @@ def create_retriever_multi_vector_img():
         img_base64_list
     )
 
-@st.cache_resource
+#@st.cache_resource
 def create_chain_multimodal_rag():
     print(f"\t\tсоздаем RAG цепочку с использованием ретривера")
     return multi_modal_rag_chain(retriever_multi_vector_img)
@@ -428,8 +436,9 @@ def create_chain_multimodal_rag():
 print(f"создание или загрузка из cache_resource объектов векторного хранилища, ретривера и RAG цепочки" )
 vectorstore = create_vectorstore()
 retriever_multi_vector_img = create_retriever_multi_vector_img()
-chain_multimodal_rag = create_chain_multimodal_rag()
+# chain_multimodal_rag = create_chain_multimodal_rag()
 
+exit(10)
 ########################################################################################################################
 # работа с LLM с RAG
 ########################################################################################################################
