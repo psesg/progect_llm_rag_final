@@ -116,7 +116,7 @@ def add_document_to_retr(retriever: MultiVectorRetriever, doc_summaries, doc_con
     id_key = "doc_id"  # Ключ для идентификации документов в хранилище
     # Создаем документы для векторного хранилища из суммаризаций
     summary_docs = [
-        Document(page_content=s.get('text'), metadata={id_key: doc_ids[i]})
+        Document(page_content=str(s.get('text')), metadata={id_key: doc_ids[i]})
         for i, s in enumerate(doc_summaries)
     ]
     #print(summary_docs[:1])
