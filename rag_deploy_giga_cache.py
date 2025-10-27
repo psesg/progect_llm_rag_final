@@ -429,7 +429,6 @@ print(f"создание или загрузка из cache_resource объек�
 vectorstore = create_vectorstore()
 retriever_multi_vector_img = create_retriever_multi_vector_img()
 chain_multimodal_rag = create_chain_multimodal_rag()
-chain_multimodal_worag = create_chain_multimodal_worag()
 
 ########################################################################################################################
 # работа с LLM с RAG
