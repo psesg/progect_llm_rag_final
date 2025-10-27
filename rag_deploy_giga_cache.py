@@ -24,6 +24,7 @@ import streamlit as st
 import logging
 from giga_util import get_giga_credentials, get_giga_url_access_mode, get_giga_token_access
 from langchain_gigachat.embeddings.gigachat import GigaChatEmbeddings
+from langchain_gigachat.chat_models import GigaChat
 
 if platform.system() == "Linux": # or platform.system() == "Darwin"
     # next lines for fix streamlit: Your system has an unsupported version of sqlite3.
@@ -114,12 +115,39 @@ def add_document_to_retr(retriever: MultiVectorRetriever, doc_summaries, doc_con
     # Генерируем уникальные идентификаторы для каждого документа
     doc_ids = [str(uuid.uuid4()) for _ in doc_contents]
     id_key = "doc_id"  # Ключ для идентификации документов в хранилище
+    source_document = 'source_document'
+    page_number = 'page_number'
+    paragraph_number = 'paragraph_number'
+    text = 'text'
+    table_content = 'table_content'
+    image_content = 'image_content'
+    image_path = 'image_path'
+
     # Создаем документы для векторного хранилища из суммаризаций
-    summary_docs = [
-        Document(page_content=str(s.get('text')), metadata={id_key: doc_ids[i]})
-        for i, s in enumerate(doc_summaries)
-    ]
-    #print(summary_docs[:1])
+    # summary_docs = [
+    #     Document(page_content=str(s.get('text')), metadata={id_key: doc_ids[i], source_document: s.get('source_document')})
+    #     for i, s in enumerate(doc_summaries)
+    # ]
+    summary_docs = []
+    m_d = {}
+    for i, s in enumerate(doc_summaries):
+        if text in s:
+            p_c = str(s.get('text'))
+        if table_content in s:
+            p_c = str(s.get('table_content'))
+        if image_content in s:
+            p_c = str(s.get('image_content'))
+        m_d.update({id_key: doc_ids[i]})
+        if source_document in s:
+            m_d.update({source_document: str(s.get(source_document))})
+        if page_number in s:
+            m_d.update({page_number: str(s.get(page_number))})
+        if paragraph_number in s:
+            m_d.update({paragraph_number: str(s.get(paragraph_number))})
+        if image_path in s:
+            m_d.update({image_path: str(s.get(image_path))})
+        doc = Document(page_content=p_c, metadata=m_d)
+        summary_docs.append(doc)
 
     print(summary_docs[:3])
     # Добавляем документы в векторное хранилище
@@ -168,8 +196,6 @@ def create_multi_vector_retriever(vectorstore,
         id_key=id_key
     )
     if text_summaries:
-        # print (text_summaries[:1])
-        # print(texts[:1])
         add_document_to_retr(retriever, text_summaries, texts)
     if table_summaries:
         add_document_to_retr(retriever, table_summaries, tables)
@@ -321,7 +347,17 @@ def multi_modal_rag_chain(retriever):
     Цепочка для обработки запросов с учетом текста и изображений.
     """
     # OpenAI API ключ в os.environ["OPENAI_API_KEY"]
-    gen_ai_model = ChatOpenAI(temperature=0, model=model, max_tokens=3000)
+    if giga:
+        # Авторизация в сервисе GigaChat
+        gen_ai_model = GigaChat(model=model_giga,
+                        credentials=credentials,
+                        verify_ssl_certs=False,
+                        scope="GIGACHAT_API_CORP",
+                        auth_url=url_oauth,
+                        temperature=0,
+                        profanity_check=False)
+    else:
+        gen_ai_model = ChatOpenAI(temperature=0, model=model, max_tokens=3000)
     # Определяем цепочку обработки запросов
     chain = (
         {
@@ -436,9 +472,17 @@ def create_chain_multimodal_rag():
 print(f"создание или загрузка из cache_resource объектов векторного хранилища, ретривера и RAG цепочки" )
 vectorstore = create_vectorstore()
 retriever_multi_vector_img = create_retriever_multi_vector_img()
-# chain_multimodal_rag = create_chain_multimodal_rag()
+chain_multimodal_rag = create_chain_multimodal_rag()
 
-exit(10)
+# Пример запроса
+query = "Кто выполнил работу про создание первых электрических элементов и виды альтернативной энергии?"
+docs = retriever_multi_vector_img.get_relevant_documents(query, limit=6)
+print(f'len(docs) = {len(docs)})')
+for d in docs:
+    print(d)
+# resp = chain_multimodal_rag.invoke(query)
+# print(resp)
+exit(0)
 ########################################################################################################################
 # работа с LLM с RAG
 ########################################################################################################################
