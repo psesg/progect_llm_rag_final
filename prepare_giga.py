@@ -57,7 +57,7 @@ if len(params) > 0  and not set(params).issubset(allowed_params):
     exit(10)
 
 # debug code on alt_sources_energy.pdf work real on Sber2023.pdf
-report_path = "source_pdf_report/alt_sources_energy.pdf" #Sber2023.pdf alt_sources_energy.pdf
+report_path = "source_pdf_report/Sber2023.pdf" #Sber2023.pdf alt_sources_energy.pdf
 gl_start_datetime = datetime.datetime.now()
 print(f"{gl_start_datetime.strftime('%Y.%m.%d %H:%M:%S')} ->: begin preprocessing input PDF file: {report_path}")
 
@@ -377,8 +377,8 @@ def image_summarize(img_base64, prompt, img_path):
                         auth_url=url_oauth,
                         temperature=0)
         file = chat.upload_file(open(img_path, "rb"),"general")
-        print(f'\t\t\tuploaded file: {file.filename} got id = {file.id_}')
         time.sleep(3)  # Sleep for 3 seconds
+        print(f'\t\t\tuploaded file: {file.filename} got id = {file.id_}')
         # Возвращаем содержимое ответа от модели
         print(f'\t\t\tdescribing image file: {file.filename}')
         msg = chat.invoke(
