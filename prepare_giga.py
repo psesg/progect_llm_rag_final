@@ -377,7 +377,7 @@ def image_summarize(img_base64, prompt, img_path):
                         auth_url=url_oauth,
                         temperature=0)
         file = chat.upload_file(open(img_path, "rb"),"general")
-        time.sleep(3)  # Sleep for 3 seconds
+        time.sleep(2)  # Sleep for 2 seconds
         print(f'\t\t\tuploaded file: {file.filename} got id = {file.id_}')
         # Возвращаем содержимое ответа от модели
         print(f'\t\t\tdescribing image file: {file.filename}')
