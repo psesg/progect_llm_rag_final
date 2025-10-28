@@ -480,7 +480,7 @@ docs = retriever_multi_vector_img.get_relevant_documents(query, limit=6)
 print(f'len(docs) = {len(docs)})')
 for d in docs:
     print(d)
-# resp = chain_multimodal_rag.invoke(query)
+resp = chain_multimodal_rag.invoke(query)
 # print(resp)
 exit(0)
 ########################################################################################################################

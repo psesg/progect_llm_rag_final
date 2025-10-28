@@ -108,8 +108,14 @@ print(f"\t\t\t{raw_pdf_elements_pkl}")
 texts_pkl = os.path.join(path_to_pkl,"texts_pkl.pkl")
 print(f"\t\t\t{texts_pkl}")
 
+txts_pkl = os.path.join(path_to_pkl,"txts_pkl.pkl")
+print(f"\t\t\t{txts_pkl}")
+
 tables_pkl = os.path.join(path_to_pkl,"tables_pkl.pkl")
 print(f"\t\t\t{tables_pkl}")
+
+tbls_pkl = os.path.join(path_to_pkl,"tbls_pkl.pkl")
+print(f"\t\t\t{tbls_pkl}")
 
 images_pkl = os.path.join(path_to_pkl,"images_pkl.pkl")
 print(f"\t\t\t{images_pkl}")
@@ -172,8 +178,8 @@ def categorize_elements(raw_pdf_elements, source_document):
     Возвращает:
     Два списка: texts (текстовые элементы) и tables (таблицы).
     """
-    # tables = []  # Список для хранения элементов типа "таблица"
-    # texts = []   # Список для хранения текстовых элементов
+    tables = []  # Список для хранения элементов типа "таблица"
+    texts = []   # Список для хранения текстовых элементов
     text_data = []  # Список для хранения текстовых элементов с метаданными
     table_data = [] # Список для хранения элементов типа "таблица" с метаданными
     image_data = []  # Список для хранения элементов типа "image" с метаданными
@@ -192,6 +198,7 @@ def categorize_elements(raw_pdf_elements, source_document):
 
             # Преобразование таблицы в строковое представление
             table_content = str(element)
+            tables.append(str(element))
 
             # Добавление метаданных таблицы в список table_data
             table_data.append({
@@ -220,6 +227,7 @@ def categorize_elements(raw_pdf_elements, source_document):
 
             # Извлечение текста из элемента
             text_content = str(element.text)
+            texts.append(str(element.text))
 
             # Добавление текста и его метаданных в список text_data
             text_data.append({
@@ -247,7 +255,7 @@ def categorize_elements(raw_pdf_elements, source_document):
                 "image_path": image_path             # Путь к изображению (если доступен)
             })
 
-    return text_data, table_data, image_data # Возвращаем списки с текстами, таблицами и изображениями
+    return text_data, table_data, image_data, texts, tables # Возвращаем списки с текстами, таблицами и изображениями
 
 # Функция для суммаризации текста и таблиц
 def generate_text_summaries(texts, tables, summarize_texts=False):
@@ -493,14 +501,20 @@ if  len(params) == 0 or '-cat_txt_tbl_img' in params:
         # Категоризируем извлеченные элементы на текстовые и табличные с помощью функции categorize_elements
         with open(raw_pdf_elements_pkl, 'rb') as inp:
             raw_pdf_elements = pickle.load(inp)
-        texts, tables, images = categorize_elements(raw_pdf_elements, report_path)
+        texts, tables, images, txts, tbls = categorize_elements(raw_pdf_elements, report_path)
 
         # сохраняем результаты для дальнейшего использования
         with open(texts_pkl, 'wb') as outp:
             pickle.dump(texts, outp, pickle.HIGHEST_PROTOCOL)
 
+        with open(txts_pkl, 'wb') as outp:
+            pickle.dump(txts, outp, pickle.HIGHEST_PROTOCOL)
+
         with open(tables_pkl, 'wb') as outp:
             pickle.dump(tables, outp, pickle.HIGHEST_PROTOCOL)
+
+        with open(tbls_pkl, 'wb') as outp:
+            pickle.dump(tbls, outp, pickle.HIGHEST_PROTOCOL)
 
         with open(images_pkl, 'wb') as outp:
             pickle.dump(images, outp, pickle.HIGHEST_PROTOCOL)
@@ -599,6 +613,14 @@ if  len(params) == 0 or '-get_stat' in params:
         with open(texts_pkl, 'rb') as inp:
             texts = pickle.load(inp)
 
+    if not os.path.exists(txts_pkl):
+        print(f"\t\tfile not exists:{txts_pkl}")
+        exit(2)
+    else:
+        print(f"\t\tfile - ok: {txts_pkl}")
+        with open(txts_pkl, 'rb') as inp:
+            txts = pickle.load(inp)
+
     # table элементы
     if not os.path.exists(tables_pkl):
         print(f"\t\tfile not exists:{tables_pkl}")
@@ -607,6 +629,14 @@ if  len(params) == 0 or '-get_stat' in params:
         print(f"\t\tfile - ok: {tables_pkl}")
         with open(tables_pkl, 'rb') as inp:
             tables = pickle.load(inp)
+
+    if not os.path.exists(tbls_pkl):
+        print(f"\t\tfile not exists:{tbls_pkl}")
+        exit(2)
+    else:
+        print(f"\t\tfile - ok: {tbls_pkl}")
+        with open(tbls_pkl, 'rb') as inp:
+            tbls = pickle.load(inp)
 
     # image элементы
     if not os.path.exists(images_pkl):
@@ -662,6 +692,11 @@ if  len(params) == 0 or '-get_stat' in params:
             print("\t\t\t", end="")
             print(texts[:n_samples])
 
+    if len(txts) > 0:
+            print(f"\t\tlen(texts)={len(txts)}")
+            print("\t\t\t", end="")
+            print(txts[:n_samples])
+
     if len(text_summaries) > 0:
             print(f"\t\tlen(text_summaries)={len(text_summaries)}")
             print("\t\t\t", end="")
@@ -671,6 +706,11 @@ if  len(params) == 0 or '-get_stat' in params:
             print(f"\t\tlen(tables)={len(tables)}")
             print("\t\t\t", end="")
             print(tables[:n_samples])
+
+    if len(tbls) > 0:
+            print(f"\t\tlen(tables)={len(tbls)}")
+            print("\t\t\t", end="")
+            print(tbls[:n_samples])
 
     if len(table_summaries) > 0:
             print(f"\t\tlen(table_summaries)={len(table_summaries)}")
