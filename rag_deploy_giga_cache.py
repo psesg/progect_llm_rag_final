@@ -293,8 +293,9 @@ def split_image_text_types(docs):
             b64_images.append(doc)
         else:
             texts.append(doc)
-    print (f"len(texts)= {len(texts)}\nlen(b64_images)= {len(b64_images)}\n")
-    # print(texts)
+    print (f"len(texts) = {len(texts)} len(b64_images) = {len(b64_images)}\n")
+    for t in texts:
+        print(f'\t\t[{t}]')
     return {"images": b64_images, "texts": texts}
 
 
@@ -497,11 +498,11 @@ query = ("Каким учащимся подготовлен реферат об
          " источников энергии и каковы основные тезисы реферата?")
 query = "Что говорится в отчете Сбера о кредитах по амортизированной и справедливой стоимости на конец 2022 и 2023 года?"
 docs = retriever_multi_vector_img.get_relevant_documents(query, limit=6)
-print(f'len(docs) = {len(docs)})')
+print(f'get_relevant_documents len(docs) = {len(docs)})')
 for d in docs:
     print(f'\t\t{d}]')
 resp = chain_multimodal_rag.invoke(query)
-print(f'\t\t[{resp}]')
+print(f'\n\t\tresp = [{resp}]')
 exit(0)
 ########################################################################################################################
 # работа с LLM с RAG
