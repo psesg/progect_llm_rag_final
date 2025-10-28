@@ -693,7 +693,7 @@ if  len(params) == 0 or '-get_stat' in params:
             print(texts[:n_samples])
 
     if len(txts) > 0:
-            print(f"\t\tlen(texts)={len(txts)}")
+            print(f"\t\tlen(txts)={len(txts)}")
             print("\t\t\t", end="")
             print(txts[:n_samples])
 
@@ -708,7 +708,7 @@ if  len(params) == 0 or '-get_stat' in params:
             print(tables[:n_samples])
 
     if len(tbls) > 0:
-            print(f"\t\tlen(tables)={len(tbls)}")
+            print(f"\t\tlen(tbls)={len(tbls)}")
             print("\t\t\t", end="")
             print(tbls[:n_samples])
 
