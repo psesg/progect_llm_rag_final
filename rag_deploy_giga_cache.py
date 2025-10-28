@@ -500,7 +500,7 @@ query = "Что говорится в отчете Сбера о кредита�
 docs = retriever_multi_vector_img.get_relevant_documents(query, limit=6)
 print(f'get_relevant_documents len(docs) = {len(docs)})')
 for d in docs:
-    print(f'\t\t{d}]')
+    print(f'\t\t[{d}]')
 resp = chain_multimodal_rag.invoke(query)
 print(f'\n\t\tresp = [{resp}]')
 exit(0)
