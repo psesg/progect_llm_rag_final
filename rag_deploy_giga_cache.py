@@ -79,8 +79,14 @@ else:
 texts_pkl = os.path.join(path_to_pkl,"texts_pkl.pkl")
 print(f"\t\t\t{texts_pkl}")
 
+txts_pkl = os.path.join(path_to_pkl,"txts_pkl.pkl")
+print(f"\t\t\t{txts_pkl}")
+
 tables_pkl = os.path.join(path_to_pkl,"tables_pkl.pkl")
 print(f"\t\t\t{tables_pkl}")
+
+tbls_pkl = os.path.join(path_to_pkl,"tbls_pkl.pkl")
+print(f"\t\t\t{tbls_pkl}")
 
 text_summaries_pkl = os.path.join(path_to_pkl,"text_summaries_pkl.pkl")
 print(f"\t\t\t{text_summaries_pkl}")
@@ -398,9 +404,21 @@ def load_texts():
         return pickle.load(inp)
 
 #@st.cache_data
+def load_txts():
+    with open(txts_pkl, 'rb') as inp:
+        print(f"\t\tfile loaded - ok: {txts_pkl}")
+        return pickle.load(inp)
+
+#@st.cache_data
 def load_tables():
     with open(tables_pkl, 'rb') as inp:
         print(f"\t\tfile loaded - ok: {tables_pkl}")
+        return pickle.load(inp)
+
+#@st.cache_data
+def load_tbls():
+    with open(tbls_pkl, 'rb') as inp:
+        print(f"\t\tfile loaded - ok: {tbls_pkl}")
         return pickle.load(inp)
 
 #@st.cache_data
@@ -428,8 +446,8 @@ def load_image_summaries():
         return pickle.load(inp)
 
 print(f"загрузка из сохраненных pkl файлов или из cache_data")
-texts = load_texts()
-tables = load_tables()
+texts = load_txts() # load_texts()
+tables = load_tbls() # load_tables()
 text_summaries = load_text_summaries()
 table_summaries = load_table_summaries()
 img_base64_list = load_img_base64_list()
@@ -475,13 +493,15 @@ retriever_multi_vector_img = create_retriever_multi_vector_img()
 chain_multimodal_rag = create_chain_multimodal_rag()
 
 # Пример запроса
-query = "Кто выполнил работу про создание первых электрических элементов и виды альтернативной энергии?"
+query = ("Каким учащимся подготовлен реферат об исследовании создания первых электрических элементов и альтернативных"
+         " источников энергии и каковы основные тезисы реферата?")
+query = "Что говорится в отчете Сбера о кредитах по амортизированной и справедливой стоимости на конец 2022 и 2023 года?"
 docs = retriever_multi_vector_img.get_relevant_documents(query, limit=6)
 print(f'len(docs) = {len(docs)})')
 for d in docs:
-    print(d)
+    print(f'\t\t{d}]')
 resp = chain_multimodal_rag.invoke(query)
-# print(resp)
+print(f'\t\t[{resp}]')
 exit(0)
 ########################################################################################################################
 # работа с LLM с RAG
