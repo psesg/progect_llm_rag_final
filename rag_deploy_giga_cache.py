@@ -70,6 +70,7 @@ print(f"setting up output file paths")
 if giga:
     image_block_output_dir = "./giga_extracted_images"
     path_to_pkl = "./giga_pickles"
+    path_to_db = "./chroma_db"
 else:
     image_block_output_dir = "./extracted_images"
     path_to_pkl = "./pickles"
@@ -471,6 +472,7 @@ def create_vectorstore():
     print(f"\t\tсоздаем векторное хранилище")
     return Chroma(
         collection_name="pse_rag_sber_report",  # Название коллекции
+        persist_directory=path_to_db,
         embedding_function=GigaChatEmbeddings(
             credentials=credentials,
             scope="GIGACHAT_API_CORP",
@@ -499,6 +501,8 @@ def create_chain_multimodal_rag():
 
 print(f"создание или загрузка из cache_resource объектов векторного хранилища, ретривера и RAG цепочки" )
 vectorstore = create_vectorstore()
+if not os.path.exists(os.path.join(path_to_db,"chroma.sqlite3")):
+    vectorstore.persist()
 retriever_multi_vector_img = create_retriever_multi_vector_img()
 chain_multimodal_rag = create_chain_multimodal_rag()
 
