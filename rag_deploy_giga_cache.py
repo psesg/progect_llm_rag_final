@@ -100,6 +100,9 @@ print(f"\t\t\t{img_base64_list_pkl}")
 image_summaries_pkl = os.path.join(path_to_pkl,"image_summaries_pkl.pkl")
 print(f"\t\t\t{image_summaries_pkl}")
 
+imgs_pkl = os.path.join(path_to_pkl,"imgs_pkl.pkl")
+print(f"\t\t\t{imgs_pkl}")
+
 model = "gpt-4o"   # "gpt-3.5-turbo"
 
 # получение имения хоста и платформы для дальнейшего вывода
@@ -294,8 +297,7 @@ def split_image_text_types(docs):
         else:
             texts.append(doc)
     print (f"len(texts) = {len(texts)} len(b64_images) = {len(b64_images)}\n")
-    for t in texts:
-        print(f'\t\t[{t}]')
+    # print(f'\t\t[{texts}]')
     return {"images": b64_images, "texts": texts}
 
 
@@ -446,6 +448,12 @@ def load_image_summaries():
         print(f"\t\tfile loaded - ok: {image_summaries_pkl}")
         return pickle.load(inp)
 
+#@st.cache_data
+def load_imgs():
+    with open(imgs_pkl, 'rb') as inp:
+        print(f"\t\tfile loaded - ok: {imgs_pkl}")
+        return pickle.load(inp)
+
 print(f"загрузка из сохраненных pkl файлов или из cache_data")
 texts = load_txts() # load_texts()
 tables = load_tbls() # load_tables()
@@ -453,6 +461,7 @@ text_summaries = load_text_summaries()
 table_summaries = load_table_summaries()
 img_base64_list = load_img_base64_list()
 image_summaries = load_image_summaries()
+imgs = load_imgs()
 ########################################################################################################################
 # начало реального запуска RAG-pipeline
 # создание или загрузка из cache_resource объектов векторного хранилища, ретривера и RAG цепочки
@@ -480,7 +489,7 @@ def create_retriever_multi_vector_img():
         table_summaries,
         tables,
         image_summaries,
-        img_base64_list
+        imgs #img_base64_list - for GigaChat will send describing text for GPT - base64 images
     )
 
 #@st.cache_resource
@@ -500,8 +509,8 @@ query = "Что говорится в отчете Сбера о кредита�
 query = "О чем страница отчета Сбера, где изображена женщина-велосипедист в защитном шлеме и очках на фоне размытого пейзажа?"
 docs = retriever_multi_vector_img.get_relevant_documents(query, limit=6)
 print(f'get_relevant_documents len(docs) = {len(docs)})')
-for d in docs:
-    print(f'\t\t[{d}]')
+# for d in docs:
+#     print(f'\t\t[{d}]')
 resp = chain_multimodal_rag.invoke(query)
 print(f'\n\t\tresp = [{resp}]')
 exit(0)

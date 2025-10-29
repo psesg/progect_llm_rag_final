@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-
+from accelerate.commands.config.config import description
 from unstructured.documents.elements import NarrativeText, Table, Image
 from unstructured.partition.pdf import partition_pdf
 from langchain_core.prompts import ChatPromptTemplate
@@ -132,6 +132,8 @@ print(f"\t\t\t{img_base64_list_pkl}")
 image_summaries_pkl = os.path.join(path_to_pkl,"image_summaries_pkl.pkl")
 print(f"\t\t\t{image_summaries_pkl}")
 
+imgs_pkl = os.path.join(path_to_pkl,"imgs_pkl.pkl")
+print(f"\t\t\t{imgs_pkl}")
 ########################################################################################################################
 # определение необходимых для предобработки PDF файла функций
 ########################################################################################################################
@@ -432,7 +434,8 @@ def generate_img_summaries(images):
     - image_summaries: Список суммаризаций для каждого изображения.
     """
     img_base64_list = []  # Список для хранения закодированных изображений
-    image_summaries = []  # Список для хранения суммаризаций изображений
+    image_summaries = []  # Список для хранения суммаризаций изображений с метаданныим (dictionary)
+    imgs = []             # Список для хранения суммаризаций изображений без метаданных
 
     # Запрос для модели GPT
     prompt = """Ты — специалист по созданию коротких и содержательных описаний по изображениям.
@@ -456,14 +459,16 @@ def generate_img_summaries(images):
                 print(f'\t\tsummarization image element {n_file} from {n_files}: {img_path}')
                 base64_image = encode_image(img_path)  # Кодируем изображение в base64
                 img_base64_list.append(base64_image)  # Добавляем закодированное изображение в список
-                image.update({'image_content': image_summarize(base64_image, prompt, img_path)})
+                description = image_summarize(base64_image, prompt, img_path)
+                image.update({'image_content': description})
                 image_summaries.append(image)
+                imgs.append(description)
                 n_file += 1
             else:
                 logger.warning(f'img_path not exist: {img_path}')
     logger.debug(f'length images = {len(images)}\n\t\timages: <{images}>\n\t\timage summaries: [{image_summaries}]')
 
-    return img_base64_list, image_summaries  # Возвращаем результаты
+    return img_base64_list, image_summaries, imgs  # Возвращаем результаты
 
 ########################################################################################################################
 # начало реальной обработки файла
@@ -575,14 +580,18 @@ if  len(params) == 0 or '-sum_img' in params:
         with open(images_pkl, 'rb') as inp:
             images = pickle.load(inp)
     # Вызываем функцию для генерации суммаризаций изображений
-    img_base64_list, image_summaries = generate_img_summaries(images)
+    img_base64_list, image_summaries, imgs = generate_img_summaries(images)
 
     # сохраняем результаты для дальнейшего использования
     with open(img_base64_list_pkl, 'wb') as outp:
         pickle.dump(img_base64_list, outp, pickle.HIGHEST_PROTOCOL)
     with open(image_summaries_pkl, 'wb') as outp:
         pickle.dump(image_summaries, outp, pickle.HIGHEST_PROTOCOL)
-    print(f'\t\tsummarized elements - image: {len(image_summaries_pkl)} created img_base64_list: {len(img_base64_list)}')
+    with open(imgs_pkl, 'wb') as outp:
+        pickle.dump(imgs, outp, pickle.HIGHEST_PROTOCOL)
+
+    print(f'\t\tsummarized elements - image+meta: {len(image_summaries)} image w/o meta: {len(imgs)}'
+          f' created img_base64_list: {len(img_base64_list)} ')
     datetime_finish = datetime.datetime.now()
     delta_sec = date_diff_in_seconds(datetime_finish, start_datetime)
     el_d, el_h, el_m, el_s = dhms_from_seconds(delta_sec)
@@ -674,7 +683,7 @@ if  len(params) == 0 or '-get_stat' in params:
         with open(img_base64_list_pkl, 'rb') as inp:
             img_base64_list = pickle.load(inp)
 
-    # summary image элементы
+    # summary image элементы + meta
     if not os.path.exists(image_summaries_pkl):
         print(f"\t\tfile not exists:{image_summaries_pkl}")
         exit(2)
@@ -682,6 +691,15 @@ if  len(params) == 0 or '-get_stat' in params:
         print(f"\t\tfile - ok: {image_summaries_pkl}")
         with open(image_summaries_pkl, 'rb') as inp:
             image_summaries = pickle.load(inp)
+
+    # summary image элементы w/o meta
+    if not os.path.exists(imgs_pkl):
+        print(f"\t\tfile not exists:{imgs_pkl}")
+        exit(2)
+    else:
+        print(f"\t\tfile - ok: {imgs_pkl}")
+        with open(imgs_pkl, 'rb') as inp:
+            imgs = pickle.load(inp)
 
     # печать сэмплов данных
     n_samples = 10
@@ -726,6 +744,11 @@ if  len(params) == 0 or '-get_stat' in params:
             print(f"\t\tlen(image_summaries)={len(image_summaries)}")
             print("\t\t\t", end="")
             print(image_summaries[:n_samples])
+
+    if len(imgs) > 0:
+            print(f"\t\tlen(imgs)={len(imgs)}")
+            print("\t\t\t", end="")
+            print(imgs[:n_samples])
 
     if len(img_base64_list) > 0:
             print(f"\t\tlen(img_base64_list)={len(img_base64_list)}")
