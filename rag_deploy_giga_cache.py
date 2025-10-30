@@ -475,6 +475,7 @@ def create_vectorstore():
         persist_directory=path_to_db,
         embedding_function=GigaChatEmbeddings(
             credentials=credentials,
+            auth_url=url_oauth,
             scope="GIGACHAT_API_CORP",
             verify_ssl_certs=False,
         )
