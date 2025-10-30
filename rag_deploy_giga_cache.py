@@ -47,6 +47,7 @@ warnings.filterwarnings('ignore', category=DeprecationWarning)
 # admin application via HitHub account  on https://share.streamlit.io/
 giga = True
 model_giga = "GigaChat-2-Max" # "GigaChat-2-Pro"
+model_emb = "Embeddings" # EmbeddingsGigaR
 if giga:
     credentials = get_giga_credentials()
     if credentials == '':
@@ -474,6 +475,7 @@ def create_vectorstore():
         collection_name="pse_rag_sber_report",  # Название коллекции
         persist_directory=path_to_db,
         embedding_function=GigaChatEmbeddings(
+            model=model_emb,
             credentials=credentials,
             auth_url=url_oauth,
             scope="GIGACHAT_API_CORP",
