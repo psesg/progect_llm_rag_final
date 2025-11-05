@@ -12,7 +12,8 @@ import platform
 import socket as sckt
 from PIL import Image
 from langchain.retrievers.multi_vector import MultiVectorRetriever
-from langchain.storage import InMemoryStore
+from langchain.storage import InMemoryStore, LocalFileStore
+# from langchain_classic.storage import LocalFileStore
 from langchain_community.vectorstores import Chroma
 from langchain_core.documents import Document
 from langchain_openai import OpenAIEmbeddings
@@ -25,6 +26,7 @@ import logging
 from giga_util import get_giga_credentials, get_giga_url_access_mode, get_giga_token_access
 from langchain_gigachat.embeddings.gigachat import GigaChatEmbeddings
 from langchain_gigachat.chat_models import GigaChat
+from langchain.storage._lc_store import create_kv_docstore
 
 if platform.system() == "Linux": # or platform.system() == "Darwin"
     # next lines for fix streamlit: Your system has an unsupported version of sqlite3.
@@ -72,6 +74,7 @@ if giga:
     image_block_output_dir = "./giga_extracted_images"
     path_to_pkl = "./giga_pickles"
     path_to_db = "./chroma_db"
+    path_to_ds = "./store_ds"
 else:
     image_block_output_dir = "./extracted_images"
     path_to_pkl = "./pickles"
@@ -284,12 +287,12 @@ def create_new_multi_vector_retriever(vectorstore, all_docs_store):
     """
 
     # Создаем хранилище для метаданных документов в памяти
-    store = all_docs_store # InMemoryStore()
+    # store = all_docs_store # InMemoryStore()
     id_key = "doc_id"  # Ключ для идентификации документов в хранилище
     # Создаем многофакторный ритривер
     retriever = MultiVectorRetriever(
         vectorstore=vectorstore,
-        docstore=store,
+        docstore=all_docs_store,
         id_key=id_key
     )
 
@@ -371,12 +374,12 @@ def split_image_text_types(docs):
     texts = []
     for doc in docs:
         if isinstance(doc, Document):
-            doc = doc.page_content
-        if looks_like_base64(doc) and is_image_data(doc):
+            doc = str(doc.page_content)
+        if looks_like_base64(str(doc)) and is_image_data(str(doc)):
             doc = resize_base64_image(doc, size=(1300, 600))
             b64_images.append(doc)
         else:
-            texts.append(doc)
+            texts.append(str(doc))
     print (f"len(texts) = {len(texts)} len(b64_images) = {len(b64_images)}\n")
     # print(f'\t\t[{texts}]')
     return {"images": b64_images, "texts": texts}
@@ -393,7 +396,7 @@ def img_prompt_func(data_dict):
     Возвращает:
     Список сообщений для отправки модели.
     """
-    formatted_texts = "\n".join(data_dict["context"]["texts"])
+    formatted_texts = "\n".join(str(data_dict["context"]["texts"]))
     messages = []
 
     # Добавляем изображения в сообщения, если они присутствуют
@@ -573,15 +576,33 @@ all_indexes.extend(id_docs)
 all_vector_docs.extend(vector_docs)
 all_docs.extend(imgs)
 
+
+# Create a list of Document objects
+langchain_documents = []
+full_docs = []
+for i, item in enumerate(all_docs):
+    doc = Document(
+        page_content=item,
+        metadata={"doc_id": all_indexes[i]}
+    )
+    langchain_documents.append(doc)
+    full_docs.append((all_indexes[i], item,))
+
+# Serialize the documents before storing them
+serialized_docs = [(id, pickle.dumps(doc)) for id, doc in full_docs]
+
 # Создаем хранилище для документов в памяти или на диске
 print(f"\t\tсоздаем хранилище для документов в памяти или на диске")
-all_docs_store = InMemoryStore()
-all_docs_store.mset(list(zip(all_indexes, all_docs)))
+all_docs_store = LocalFileStore(path_to_ds)
+#all_docs_store = create_kv_docstore(fs)
+# all_docs_store = InMemoryStore()
+all_docs_store.mset(serialized_docs)
+# all_docs_store.mset(list(zip(all_indexes, all_docs)))
 
 # Get all keys
 all_keys = list(all_docs_store.yield_keys())
 values = all_docs_store.mget(all_keys)
-print(f'all_docs_store all_keys values = {all_keys[:3]} {values[:3]}')
+print(f'all_docs_store all_keys values = {all_keys[:1]} {values[:1]}')
 
 
 #@st.cache_resource
@@ -642,8 +663,8 @@ query = "Что говорится в отчете Сбера о кредита�
 query = "О чем страница отчета Сбера, где изображена женщина-велосипедист в защитном шлеме и очках на фоне размытого пейзажа?"
 docs = retriever_multi_vector_img.get_relevant_documents(query, limit=6)
 print(f'get_relevant_documents len(docs) = {len(docs)})')
-# for d in docs:
-#     print(f'\t\t[{d}]')
+for d in docs:
+    print(f'\t\trd = [{str(d)}]')
 resp = chain_multimodal_rag.invoke(query)
 print(f'\n\t\tresp = [{resp}]')
 exit(0)
