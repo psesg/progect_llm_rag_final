@@ -171,6 +171,55 @@ def add_document_to_retr(retriever: MultiVectorRetriever, doc_summaries, doc_con
 
     # return retriever  # Возвращаем созданный ритривер
 
+# Функция добавления документов в ритривер
+def add_document(doc_summaries):
+    """
+    Функция для добавления документов и их метаданных в ритривер.
+
+    Аргументы:
+    retriever: Ретривер, в который будут добавляться документы.
+    doc_summaries: Список суммаризаций документов.
+    doc_contents: Список исходных содержимых документов.
+    """
+    # Генерируем уникальные идентификаторы для каждого документа
+    doc_ids = [str(uuid.uuid4()) for _ in doc_summaries]
+    id_key = "doc_id"  # Ключ для идентификации документов в хранилище
+    source_document = 'source_document'
+    page_number = 'page_number'
+    paragraph_number = 'paragraph_number'
+    text = 'text'
+    table_content = 'table_content'
+    image_content = 'image_content'
+    image_path = 'image_path'
+
+    # Создаем документы для векторного хранилища из суммаризаций
+    # summary_docs = [
+    #     Document(page_content=str(s.get('text')), metadata={id_key: doc_ids[i], source_document: s.get('source_document')})
+    #     for i, s in enumerate(doc_summaries)
+    # ]
+    summary_docs = []
+    m_d = {}
+    for i, s in enumerate(doc_summaries):
+        if text in s:
+            p_c = str(s.get('text'))
+        if table_content in s:
+            p_c = str(s.get('table_content'))
+        if image_content in s:
+            p_c = str(s.get('image_content'))
+        m_d.update({id_key: doc_ids[i]})
+        if source_document in s:
+            m_d.update({source_document: str(s.get(source_document))})
+        if page_number in s:
+            m_d.update({page_number: str(s.get(page_number))})
+        if paragraph_number in s:
+            m_d.update({paragraph_number: str(s.get(paragraph_number))})
+        if image_path in s:
+            m_d.update({image_path: str(s.get(image_path))})
+        doc = Document(page_content=p_c, metadata=m_d)
+        summary_docs.append(doc)
+
+    print(f'\t\tsummary_docs = [{summary_docs[:1]}]')
+    return doc_ids, summary_docs
 
 # Функция создания многофакторного ритривера для базы данных
 def create_multi_vector_retriever(vectorstore,
@@ -215,6 +264,36 @@ def create_multi_vector_retriever(vectorstore,
 
     return retriever
 
+
+# Функция создания многофакторного ритривера для базы данных
+def create_new_multi_vector_retriever(vectorstore, all_docs_store):
+    """
+    Функция для создания ретривера, который может извлекать данные из разных источников (тексты, таблицы, изображения).
+
+    Аргументы:
+    vectorstore: Векторное хранилище для хранения векторных представлений документов.
+    text_summaries: Список суммаризаций текстовых элементов.
+    texts: Список исходных текстов.
+    table_summaries: Список суммаризаций таблиц.
+    tables: Список исходных таблиц.
+    image_summaries: Список суммаризаций изображений.
+    images: Список изображений в формате base64.
+
+    Возвращает:
+    Созданный ретривер, который может извлекать данные из различных источников.
+    """
+
+    # Создаем хранилище для метаданных документов в памяти
+    store = all_docs_store # InMemoryStore()
+    id_key = "doc_id"  # Ключ для идентификации документов в хранилище
+    # Создаем многофакторный ритривер
+    retriever = MultiVectorRetriever(
+        vectorstore=vectorstore,
+        docstore=store,
+        id_key=id_key
+    )
+
+    return retriever
 
 def looks_like_base64(sb):
     """
@@ -468,34 +547,83 @@ imgs = load_imgs()
 # начало реального запуска RAG-pipeline
 # создание или загрузка из cache_resource объектов векторного хранилища, ретривера и RAG цепочки
 ########################################################################################################################
-#@st.cache_resource
-def create_vectorstore():
-    print(f"\t\tсоздаем векторное хранилище")
-    return Chroma(
-        collection_name="pse_rag_sber_report",  # Название коллекции
-        persist_directory=path_to_db,
-        embedding_function=GigaChatEmbeddings(
-            model=model_emb,
-            credentials=credentials,
-            auth_url=url_oauth,
-            scope="GIGACHAT_API_CORP",
-            verify_ssl_certs=False,
-        )
-        #embedding_function=OpenAIEmbeddings(),  # Функция для создания векторных представлений
-    )
+# подготавливаем векторное  хранилище и хранилище документов
+print(f"\t\tподготавливаем векторное  хранилище и хранилище документов")
+all_indexes = []
+all_vector_docs = []
+all_docs = []
+
+print(f"\t\t\tдобавляем тексты...")
+id_docs, vector_docs = add_document(text_summaries)
+all_indexes.extend(id_docs)
+all_vector_docs.extend(vector_docs)
+all_docs.extend(texts)
+
+
+print(f"\t\t\tдобавляем таблицы...")
+id_docs, vector_docs = add_document(table_summaries)
+all_indexes.extend(id_docs)
+all_vector_docs.extend(vector_docs)
+all_docs.extend(tables)
+
+
+print(f"\t\t\tдобавляем изображения...")
+id_docs, vector_docs = add_document(image_summaries)
+all_indexes.extend(id_docs)
+all_vector_docs.extend(vector_docs)
+all_docs.extend(imgs)
+
+# Создаем хранилище для документов в памяти или на диске
+print(f"\t\tсоздаем хранилище для документов в памяти или на диске")
+all_docs_store = InMemoryStore()
+all_docs_store.mset(list(zip(all_indexes, all_docs)))
+
+# Get all keys
+all_keys = list(all_docs_store.yield_keys())
+values = all_docs_store.mget(all_keys)
+print(f'all_docs_store all_keys values = {all_keys[:3]} {values[:3]}')
+
 
 #@st.cache_resource
-def create_retriever_multi_vector_img():
+def create_vectorstore(all_vector_docs):
+    embeddings = GigaChatEmbeddings(
+                model=model_emb,
+                credentials=credentials,
+                auth_url=url_oauth,
+                scope="GIGACHAT_API_CORP",
+                verify_ssl_certs=False,
+            )
+    if not os.path.exists(os.path.join(path_to_db, "chroma.sqlite3")):
+        print(f"\t\tсоздаем из массива суммаризированных документов векторное хранилище: {path_to_db}")
+        vs = Chroma.from_documents(
+            collection_name="pse_rag_sber_report",  # Название коллекции
+            documents=all_vector_docs,
+            persist_directory=path_to_db,
+            embedding=embeddings
+        )
+        vs.persist()
+    else:
+        print(f"\t\tоткрываем существующее векторное хранилище: {path_to_db}")
+        vs = Chroma(
+            collection_name="pse_rag_sber_report",  # Название коллекции
+            persist_directory=path_to_db,
+            embedding_function=embeddings
+        )
+    return vs
+
+#@st.cache_resource
+def create_retriever_multi_vector_img(vectorstore, all_docs_store):
     print(f"\t\tсоздаем ретривер и добавляем суммаризации текстов, таблиц и изображений")
-    return create_multi_vector_retriever(
-        vectorstore,
-        text_summaries,
-        texts,
-        table_summaries,
-        tables,
-        image_summaries,
-        imgs #img_base64_list - for GigaChat will send describing text for GPT - base64 images
-    )
+    # return create_multi_vector_retriever(
+    #     vectorstore,
+    #     text_summaries,
+    #     texts,
+    #     table_summaries,
+    #     tables,
+    #     image_summaries,
+    #     imgs #img_base64_list - for GigaChat will send describing text for GPT - base64 images
+    # )
+    return create_new_multi_vector_retriever(vectorstore, all_docs_store)
 
 #@st.cache_resource
 def create_chain_multimodal_rag():
@@ -503,10 +631,8 @@ def create_chain_multimodal_rag():
     return multi_modal_rag_chain(retriever_multi_vector_img)
 
 print(f"создание или загрузка из cache_resource объектов векторного хранилища, ретривера и RAG цепочки" )
-vectorstore = create_vectorstore()
-if not os.path.exists(os.path.join(path_to_db,"chroma.sqlite3")):
-    vectorstore.persist()
-retriever_multi_vector_img = create_retriever_multi_vector_img()
+vectorstore = create_vectorstore(all_vector_docs)
+retriever_multi_vector_img = create_retriever_multi_vector_img(vectorstore, all_docs_store)
 chain_multimodal_rag = create_chain_multimodal_rag()
 
 # Пример запроса
