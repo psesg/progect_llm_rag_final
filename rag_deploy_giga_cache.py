@@ -607,8 +607,9 @@ all_docs_store.mset(serialized_docs)
 # Get all keys
 all_keys = list(all_docs_store.yield_keys())
 values = all_docs_store.mget(all_keys)
-print(f'all_docs_store all_keys values = {all_keys[:1]} {values[:1]}')
-
+print(f'\t\tall_keys={len(all_keys)} values={len(values)}')
+for i in range(5):
+    print(f"\t\t\t{all_keys[i]}: {values[i].decode()}")
 
 #@st.cache_resource
 def create_vectorstore(all_vector_docs):
