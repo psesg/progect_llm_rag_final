@@ -14,7 +14,7 @@ from PIL import Image
 from langchain.retrievers.multi_vector import MultiVectorRetriever
 from langchain.storage import InMemoryStore, LocalFileStore
 # from langchain_classic.storage import LocalFileStore
-from langchain_community.vectorstores import Chroma
+from langchain_community.vectorstores import Chroma, FAISS
 from langchain_core.documents import Document
 from langchain_openai import OpenAIEmbeddings
 from langchain_core.runnables import RunnableLambda, RunnablePassthrough
@@ -372,16 +372,19 @@ def split_image_text_types(docs):
     """
     b64_images = []
     texts = []
+
     for doc in docs:
         if isinstance(doc, Document):
-            doc = str(doc.page_content)
-        if looks_like_base64(str(doc)) and is_image_data(str(doc)):
+            doc = doc.page_content
+        if looks_like_base64(doc) and is_image_data(doc):
             doc = resize_base64_image(doc, size=(1300, 600))
             b64_images.append(doc)
         else:
-            texts.append(str(doc))
+            texts.append(doc)
     print (f"len(texts) = {len(texts)} len(b64_images) = {len(b64_images)}\n")
-    # print(f'\t\t[{texts}]')
+    for d in texts:
+        print(f'\t\trd = [{d}]')
+
     return {"images": b64_images, "texts": texts}
 
 
@@ -396,7 +399,7 @@ def img_prompt_func(data_dict):
     Возвращает:
     Список сообщений для отправки модели.
     """
-    formatted_texts = "\n".join(str(data_dict["context"]["texts"]))
+    formatted_texts = "\n".join(data_dict["context"]["texts"])
     messages = []
 
     # Добавляем изображения в сообщения, если они присутствуют
@@ -578,26 +581,27 @@ all_docs.extend(imgs)
 
 
 # Create a list of Document objects
-langchain_documents = []
-full_docs = []
-for i, item in enumerate(all_docs):
-    doc = Document(
-        page_content=item,
-        metadata={"doc_id": all_indexes[i]}
-    )
-    langchain_documents.append(doc)
-    full_docs.append((all_indexes[i], item,))
-
-# Serialize the documents before storing them
-serialized_docs = [(id, pickle.dumps(doc)) for id, doc in full_docs]
+# langchain_documents = []
+# full_docs = []
+# for i, item in enumerate(all_docs):
+#     doc = Document(
+#         page_content=item,
+#         metadata={"doc_id": all_indexes[i]}
+#     )
+#     langchain_documents.append(doc)
+#     full_docs.append((all_indexes[i], item,))
+#
+# # Serialize the documents before storing them
+# serialized_docs = [(id, pickle.dumps(doc)) for id, doc in langchain_documents]
 
 # Создаем хранилище для документов в памяти или на диске
 print(f"\t\tсоздаем хранилище для документов в памяти или на диске")
-all_docs_store = LocalFileStore(path_to_ds)
+#all_docs_store = LocalFileStore(path_to_ds)
 #all_docs_store = create_kv_docstore(fs)
-# all_docs_store = InMemoryStore()
-all_docs_store.mset(serialized_docs)
-# all_docs_store.mset(list(zip(all_indexes, all_docs)))
+
+# all_docs_store.mset(serialized_docs)
+all_docs_store = InMemoryStore()
+all_docs_store.mset(list(zip(all_indexes, all_docs)))
 
 # Get all keys
 all_keys = list(all_docs_store.yield_keys())
@@ -614,22 +618,26 @@ def create_vectorstore(all_vector_docs):
                 scope="GIGACHAT_API_CORP",
                 verify_ssl_certs=False,
             )
-    if not os.path.exists(os.path.join(path_to_db, "chroma.sqlite3")):
+    if not os.path.exists(os.path.join(path_to_db, "faiss_index.pkl")):
         print(f"\t\tсоздаем из массива суммаризированных документов векторное хранилище: {path_to_db}")
-        vs = Chroma.from_documents(
-            collection_name="pse_rag_sber_report",  # Название коллекции
+        vs = FAISS.from_documents(
+            # collection_name="pse_rag_sber_report",  # Название коллекции
             documents=all_vector_docs,
-            persist_directory=path_to_db,
+            # persist_directory=path_to_db,
             embedding=embeddings
         )
-        vs.persist()
+        vs.save_local(folder_path=path_to_db, index_name="faiss_index")
+        # vs.persist()
     else:
         print(f"\t\tоткрываем существующее векторное хранилище: {path_to_db}")
-        vs = Chroma(
-            collection_name="pse_rag_sber_report",  # Название коллекции
-            persist_directory=path_to_db,
-            embedding_function=embeddings
-        )
+        vs = FAISS.load_local(folder_path=path_to_db, index_name="faiss_index",embeddings=embeddings,
+                              allow_dangerous_deserialization=True)
+        # vs = Chroma(
+        #     collection_name="pse_rag_sber_report",  # Название коллекции
+        #     persist_directory=path_to_db,
+        #     embedding_function=embeddings
+        # )
+        #vs.get()
     return vs
 
 #@st.cache_resource
@@ -664,7 +672,7 @@ query = "О чем страница отчета Сбера, где изобра
 docs = retriever_multi_vector_img.get_relevant_documents(query, limit=6)
 print(f'get_relevant_documents len(docs) = {len(docs)})')
 for d in docs:
-    print(f'\t\trd = [{str(d)}]')
+    print(f'\t\trd = [{d}]')
 resp = chain_multimodal_rag.invoke(query)
 print(f'\n\t\tresp = [{resp}]')
 exit(0)
