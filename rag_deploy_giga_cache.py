@@ -73,8 +73,8 @@ print(f"setting up output file paths")
 if giga:
     image_block_output_dir = "./giga_extracted_images"
     path_to_pkl = "./giga_pickles"
-    path_to_db = "./chroma_db"
-    path_to_ds = "./store_ds"
+    path_to_db = "./db_vector"
+    path_to_ds = "./db_store"
 else:
     image_block_output_dir = "./extracted_images"
     path_to_pkl = "./pickles"
