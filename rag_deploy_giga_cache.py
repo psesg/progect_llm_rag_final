@@ -373,7 +373,8 @@ def split_image_text_types(docs):
     b64_images = []
     texts = []
 
-    for doc in docs:
+    for dc in docs:
+        doc = dc.decode()
         if isinstance(doc, Document):
             doc = doc.page_content
         if looks_like_base64(doc) and is_image_data(doc):
@@ -581,27 +582,27 @@ all_docs.extend(imgs)
 
 
 # Create a list of Document objects
-# langchain_documents = []
-# full_docs = []
-# for i, item in enumerate(all_docs):
-#     doc = Document(
-#         page_content=item,
-#         metadata={"doc_id": all_indexes[i]}
-#     )
-#     langchain_documents.append(doc)
-#     full_docs.append((all_indexes[i], item,))
-#
-# # Serialize the documents before storing them
-# serialized_docs = [(id, pickle.dumps(doc)) for id, doc in langchain_documents]
+langchain_documents = []
+full_docs = []
+for i, item in enumerate(all_docs):
+    doc = Document(
+        page_content=item,
+        metadata={"doc_id": all_indexes[i]}
+    )
+    langchain_documents.append(doc)
+    full_docs.append((all_indexes[i], item,))
+
+# Serialize the documents before storing them
+serialized_docs = [(id, doc.encode()) for id, doc in full_docs]
 
 # Создаем хранилище для документов в памяти или на диске
 print(f"\t\tсоздаем хранилище для документов в памяти или на диске")
-#all_docs_store = LocalFileStore(path_to_ds)
+all_docs_store = LocalFileStore(path_to_ds)
 #all_docs_store = create_kv_docstore(fs)
 
-# all_docs_store.mset(serialized_docs)
-all_docs_store = InMemoryStore()
-all_docs_store.mset(list(zip(all_indexes, all_docs)))
+all_docs_store.mset(serialized_docs)
+# all_docs_store = InMemoryStore()
+# all_docs_store.mset(list(zip(all_indexes, all_docs)))
 
 # Get all keys
 all_keys = list(all_docs_store.yield_keys())
@@ -672,7 +673,7 @@ query = "О чем страница отчета Сбера, где изобра
 docs = retriever_multi_vector_img.get_relevant_documents(query, limit=6)
 print(f'get_relevant_documents len(docs) = {len(docs)})')
 for d in docs:
-    print(f'\t\trd = [{d}]')
+    print(f'\t\trd = [{d.decode()}]')
 resp = chain_multimodal_rag.invoke(query)
 print(f'\n\t\tresp = [{resp}]')
 exit(0)
