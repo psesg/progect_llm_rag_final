@@ -6,3 +6,4 @@ langchain-gigachat==0.3.12
 pillow==11.3.0
 streamlit==1.49.1
 pysqlite3-binary; sys_platform == 'linux' # not tested yet or  sys_platform == 'darwin'
+faiss-cpu==1.12.0
