@@ -596,11 +596,15 @@ for i, item in enumerate(all_docs):
 serialized_docs = [(id, doc.encode()) for id, doc in full_docs]
 
 # Создаем хранилище для документов в памяти или на диске
-print(f"\t\tсоздаем хранилище для документов в памяти или на диске")
-all_docs_store = LocalFileStore(path_to_ds)
 #all_docs_store = create_kv_docstore(fs)
+if not os.path.exists(path_to_ds):
+    print(f"\t\tсоздаем хранилище для документов на диске")
+    all_docs_store = LocalFileStore(path_to_ds)
+    all_docs_store.mset(serialized_docs)
+else:
+    print(f"\t\tоткрываем хранилище для документов на диске")
+    all_docs_store = LocalFileStore(path_to_ds)
 
-all_docs_store.mset(serialized_docs)
 # all_docs_store = InMemoryStore()
 # all_docs_store.mset(list(zip(all_indexes, all_docs)))
 
