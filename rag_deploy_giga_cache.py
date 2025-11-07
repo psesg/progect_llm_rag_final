@@ -624,7 +624,7 @@ def create_vectorstore(all_vector_docs):
                 scope="GIGACHAT_API_CORP",
                 verify_ssl_certs=False,
             )
-    if not os.path.exists(os.path.join(path_to_db, "faiss_index.pkl")):
+    if not os.path.exists(path_to_db):
         print(f"\t\tсоздаем из массива суммаризированных документов векторное хранилище: {path_to_db}")
         vs = FAISS.from_documents(
             # collection_name="pse_rag_sber_report",  # Название коллекции
@@ -674,7 +674,8 @@ chain_multimodal_rag = create_chain_multimodal_rag()
 query = ("Каким учащимся подготовлен реферат об исследовании создания первых электрических элементов и альтернативных"
          " источников энергии и каковы основные тезисы реферата?")
 query = "Что говорится в отчете Сбера о кредитах по амортизированной и справедливой стоимости на конец 2022 и 2023 года?"
-query = "О чем страница отчета Сбера, где изображена женщина-велосипедист в защитном шлеме и очках на фоне размытого пейзажа?"
+query = ("О чем страница отчета Сбера, где изображена женщина-велосипедист в защитном шлеме и очках на фоне размытого пейзажа?"
+         " Перечисли основные темы. Существуют ли на странице оформительские ошибки и если есть, то опиши их суть.")
 docs = retriever_multi_vector_img.get_relevant_documents(query, limit=6)
 print(f'get_relevant_documents len(docs) = {len(docs)})')
 for d in docs:
