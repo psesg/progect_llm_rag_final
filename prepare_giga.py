@@ -6,6 +6,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage
 from langchain_core.output_parsers import StrOutputParser
+from langchain_core.documents import Document
 import sys
 import os
 import pickle
@@ -17,6 +18,7 @@ import requests
 import logging
 from giga_util import get_giga_credentials, get_giga_url_access_mode, get_giga_token_access
 import datetime
+import uuid
 
 # set logging level - for logging to file add: filename='myapp.log',
 logger = logging.getLogger(__name__)
@@ -45,7 +47,7 @@ def dhms_from_seconds(seconds):
 ########################################################################################################################
 # read and append to list run parameters
 params = []
-allowed_params = ['-get_raw', '-cat_txt_tbl_img', '-sum_txt_tbl', '-sum_img', '-get_stat']
+allowed_params = ['-get_raw', '-cat_txt_tbl_img', '-sum_txt_tbl', '-sum_img', '-make_vec_doc', '-get_stat']
 strStart = sys.argv[0]
 if len(sys.argv) > 1:
     for count, value in enumerate(sys.argv):
@@ -134,6 +136,12 @@ print(f"\t\t\t{image_summaries_pkl}")
 
 imgs_pkl = os.path.join(path_to_pkl,"imgs_pkl.pkl")
 print(f"\t\t\t{imgs_pkl}")
+
+all_vector_docs_pkl = os.path.join(path_to_pkl,"all_vector_docs_pkl.pkl")
+print(f"\t\t\t{all_vector_docs_pkl}")
+
+all_id_docs_pkl = os.path.join(path_to_pkl,"all_id_docs_pkl.pkl")
+print(f"\t\t\t{all_id_docs_pkl}")
 ########################################################################################################################
 # определение необходимых для предобработки PDF файла функций
 ########################################################################################################################
@@ -470,6 +478,53 @@ def generate_img_summaries(images):
 
     return img_base64_list, image_summaries, imgs  # Возвращаем результаты
 
+# Функция создания списков уникальных идентификаторов и документов
+def add_document(doc_summaries):
+    """
+    Функция для добавления документов и метаданных в Document.
+
+    Аргументы:
+    doc_summaries: Список суммаризаций документов.
+    Возвращает:
+    Два списка:
+    Список doc_ids уникальных идентификаторов для каждого документа
+    Список summary_docs в формате Document.
+    """
+    # Генерируем уникальные идентификаторы для каждого документа
+    doc_ids = [str(uuid.uuid4()) for _ in doc_summaries]
+    id_key = "doc_id"  # Ключ для идентификации документов в хранилище
+    source_document = 'source_document'
+    page_number = 'page_number'
+    paragraph_number = 'paragraph_number'
+    text = 'text'
+    table_content = 'table_content'
+    image_content = 'image_content'
+    image_path = 'image_path'
+
+    summary_docs = []
+    m_d = {}
+    for i, s in enumerate(doc_summaries):
+        if text in s:
+            p_c = str(s.get('text'))
+        if table_content in s:
+            p_c = str(s.get('table_content'))
+        if image_content in s:
+            p_c = str(s.get('image_content'))
+        m_d.update({id_key: doc_ids[i]})
+        if source_document in s:
+            m_d.update({source_document: str(s.get(source_document))})
+        if page_number in s:
+            m_d.update({page_number: str(s.get(page_number))})
+        if paragraph_number in s:
+            m_d.update({paragraph_number: str(s.get(paragraph_number))})
+        if image_path in s:
+            m_d.update({image_path: str(s.get(image_path))})
+        doc = Document(page_content=p_c, metadata=m_d)
+        summary_docs.append(doc)
+
+    # print(f'\t\tsummary_docs = [{summary_docs[:1]}]')
+    return doc_ids, summary_docs
+
 ########################################################################################################################
 # начало реальной обработки файла
 ########################################################################################################################
@@ -596,6 +651,101 @@ if  len(params) == 0 or '-sum_img' in params:
     delta_sec = date_diff_in_seconds(datetime_finish, start_datetime)
     el_d, el_h, el_m, el_s = dhms_from_seconds(delta_sec)
     print(f"{datetime_finish.strftime('%Y.%m.%d %H:%M:%S')} ->: end summarization image elements in "
+          f"{el_d} days {el_h} hours {el_m} min {el_s} sec")
+
+########################################################################################################################
+if  len(params) == 0 or '-make_vec_doc' in params:
+    start_datetime = datetime.datetime.now()
+    print(f"{start_datetime.strftime('%Y.%m.%d %H:%M:%S')} ->: begin of saving vector and document data to disk")
+
+    # txts элементы
+    if not os.path.exists(txts_pkl):
+        print(f"\t\tfile not exists:{txts_pkl}")
+        exit(2)
+    else:
+        with open(txts_pkl, 'rb') as inp:
+            txts = pickle.load(inp)
+
+    # tbls элементы
+    if not os.path.exists(tbls_pkl):
+        print(f"\t\tfile not exists:{tbls_pkl}")
+        exit(2)
+    else:
+        with open(tbls_pkl, 'rb') as inp:
+            tbls = pickle.load(inp)
+
+    # text_summaries элементы
+    if not os.path.exists(text_summaries_pkl):
+        print(f"\t\tfile not exists:{text_summaries_pkl}")
+        exit(2)
+    else:
+        with open(text_summaries_pkl, 'rb') as inp:
+            text_summaries = pickle.load(inp)
+
+    # table_summaries элементы
+    if not os.path.exists(table_summaries_pkl):
+        print(f"\t\tfile not exists:{table_summaries_pkl}")
+        exit(2)
+    else:
+        with open(table_summaries_pkl, 'rb') as inp:
+            table_summaries = pickle.load(inp)
+
+    # imgs элементы
+    if not os.path.exists(imgs_pkl):
+        print(f"\t\tfile not exists:{imgs_pkl}")
+        exit(2)
+    else:
+        with open(imgs_pkl, 'rb') as inp:
+            imgs = pickle.load(inp)
+
+    # image_summaries элементы
+    if not os.path.exists(image_summaries_pkl):
+        print(f"\t\tfile not exists:{image_summaries_pkl}")
+        exit(2)
+    else:
+        with open(image_summaries_pkl, 'rb') as inp:
+            image_summaries = pickle.load(inp)
+
+    # подготавливаем векторное хранилище и хранилище документов
+    all_indexes = []
+    all_vector_docs = []
+    all_docs = []
+
+    print(f"\t\t\tadd text_summaries and txts...")
+    id_docs, vector_docs = add_document(text_summaries)
+    all_indexes.extend(id_docs)
+    all_vector_docs.extend(vector_docs)
+    all_docs.extend(txts)
+
+    print(f"\t\t\tadd table_summaries and tbls...")
+    id_docs, vector_docs = add_document(table_summaries)
+    all_indexes.extend(id_docs)
+    all_vector_docs.extend(vector_docs)
+    all_docs.extend(tbls)
+
+    print(f"\t\t\tadd image_summaries and imgs...")
+    id_docs, vector_docs = add_document(image_summaries)
+    all_indexes.extend(id_docs)
+    all_vector_docs.extend(vector_docs)
+    all_docs.extend(imgs)
+
+    with open(all_vector_docs_pkl, 'wb') as outp:
+        pickle.dump(all_vector_docs, outp, pickle.HIGHEST_PROTOCOL)
+
+    # Create a list of docs with IDs
+    print(f"\t\t\tcreate a list of docs with IDs...")
+    all_id_docs = []
+    for i, item in enumerate(all_docs):
+        all_id_docs.append((all_indexes[i], item.encode(),))
+
+    with open(all_id_docs_pkl, 'wb') as outp:
+        pickle.dump(all_id_docs, outp, pickle.HIGHEST_PROTOCOL)
+
+    print(f'\t\t\tall_vector_docs: {len(all_vector_docs)} all_id_docs: {len(all_id_docs)}')
+    datetime_finish = datetime.datetime.now()
+    delta_sec = date_diff_in_seconds(datetime_finish, start_datetime)
+    el_d, el_h, el_m, el_s = dhms_from_seconds(delta_sec)
+    print(f"{datetime_finish.strftime('%Y.%m.%d %H:%M:%S')} ->: end of saving vector and document data to disk"
           f"{el_d} days {el_h} hours {el_m} min {el_s} sec")
 
 ########################################################################################################################

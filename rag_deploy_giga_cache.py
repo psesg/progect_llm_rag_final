@@ -12,11 +12,9 @@ import platform
 import socket as sckt
 from PIL import Image
 from langchain.retrievers.multi_vector import MultiVectorRetriever
-from langchain.storage import InMemoryStore, LocalFileStore
-# from langchain_classic.storage import LocalFileStore
-from langchain_community.vectorstores import Chroma, FAISS
+from langchain.storage import LocalFileStore
+from langchain_community.vectorstores import FAISS
 from langchain_core.documents import Document
-from langchain_openai import OpenAIEmbeddings
 from langchain_core.runnables import RunnableLambda, RunnablePassthrough
 from langchain_core.messages import HumanMessage
 from langchain_openai import ChatOpenAI
@@ -71,42 +69,13 @@ if giga:
 # пути к файлам
 print(f"setting up output file paths")
 if giga:
-    image_block_output_dir = "./giga_extracted_images"
     path_to_pkl = "./giga_pickles"
     path_to_db = "./db_vector"
     path_to_ds = "./db_store"
 else:
-    image_block_output_dir = "./extracted_images"
     path_to_pkl = "./pickles"
 
 # пути к файлам
-
-texts_pkl = os.path.join(path_to_pkl,"texts_pkl.pkl")
-print(f"\t\t\t{texts_pkl}")
-
-txts_pkl = os.path.join(path_to_pkl,"txts_pkl.pkl")
-print(f"\t\t\t{txts_pkl}")
-
-tables_pkl = os.path.join(path_to_pkl,"tables_pkl.pkl")
-print(f"\t\t\t{tables_pkl}")
-
-tbls_pkl = os.path.join(path_to_pkl,"tbls_pkl.pkl")
-print(f"\t\t\t{tbls_pkl}")
-
-text_summaries_pkl = os.path.join(path_to_pkl,"text_summaries_pkl.pkl")
-print(f"\t\t\t{text_summaries_pkl}")
-
-table_summaries_pkl = os.path.join(path_to_pkl,"table_summaries_pkl.pkl")
-print(f"\t\t\t{table_summaries_pkl}")
-
-img_base64_list_pkl = os.path.join(path_to_pkl,"img_base64_list.pkl")
-print(f"\t\t\t{img_base64_list_pkl}")
-
-image_summaries_pkl = os.path.join(path_to_pkl,"image_summaries_pkl.pkl")
-print(f"\t\t\t{image_summaries_pkl}")
-
-imgs_pkl = os.path.join(path_to_pkl,"imgs_pkl.pkl")
-print(f"\t\t\t{imgs_pkl}")
 
 all_vector_docs_pkl = os.path.join(path_to_pkl,"all_vector_docs_pkl.pkl")
 print(f"\t\t\t{all_vector_docs_pkl}")
@@ -122,63 +91,6 @@ plat = platform.system()
 
 # определение необходимых для запуска RAG-pipeline PDF файла функций
 ########################################################################################################################
-# Функция добавления документов в ритривер
-def add_document_to_retr(retriever: MultiVectorRetriever, doc_summaries, doc_contents):
-    """
-    Функция для добавления документов и их метаданных в ритривер.
-
-    Аргументы:
-    retriever: Ретривер, в который будут добавляться документы.
-    doc_summaries: Список суммаризаций документов.
-    doc_contents: Список исходных содержимых документов.
-    """
-    # Генерируем уникальные идентификаторы для каждого документа
-    doc_ids = [str(uuid.uuid4()) for _ in doc_contents]
-    id_key = "doc_id"  # Ключ для идентификации документов в хранилище
-    source_document = 'source_document'
-    page_number = 'page_number'
-    paragraph_number = 'paragraph_number'
-    text = 'text'
-    table_content = 'table_content'
-    image_content = 'image_content'
-    image_path = 'image_path'
-
-    # Создаем документы для векторного хранилища из суммаризаций
-    # summary_docs = [
-    #     Document(page_content=str(s.get('text')), metadata={id_key: doc_ids[i], source_document: s.get('source_document')})
-    #     for i, s in enumerate(doc_summaries)
-    # ]
-    summary_docs = []
-    m_d = {}
-    for i, s in enumerate(doc_summaries):
-        if text in s:
-            p_c = str(s.get('text'))
-        if table_content in s:
-            p_c = str(s.get('table_content'))
-        if image_content in s:
-            p_c = str(s.get('image_content'))
-        m_d.update({id_key: doc_ids[i]})
-        if source_document in s:
-            m_d.update({source_document: str(s.get(source_document))})
-        if page_number in s:
-            m_d.update({page_number: str(s.get(page_number))})
-        if paragraph_number in s:
-            m_d.update({paragraph_number: str(s.get(paragraph_number))})
-        if image_path in s:
-            m_d.update({image_path: str(s.get(image_path))})
-        doc = Document(page_content=p_c, metadata=m_d)
-        summary_docs.append(doc)
-
-    print(summary_docs[:3])
-    # Добавляем документы в векторное хранилище
-
-    retriever.vectorstore.add_documents(summary_docs)
-
-    # Добавляем метаданные документов в хранилище
-    #print(doc_contents[:1])
-    retriever.docstore.mset(list(zip(doc_ids, doc_contents)))
-
-    # return retriever  # Возвращаем созданный ритривер
 
 # Функция добавления документов в ритривер
 def add_document(doc_summaries):
@@ -229,49 +141,6 @@ def add_document(doc_summaries):
 
     print(f'\t\tsummary_docs = [{summary_docs[:1]}]')
     return doc_ids, summary_docs
-
-# Функция создания многофакторного ритривера для базы данных
-def create_multi_vector_retriever(vectorstore,
-                                  text_summaries,
-                                  texts,
-                                  table_summaries,
-                                  tables,
-                                  image_summaries,
-                                  images
-                                  ):
-    """
-    Функция для создания ретривера, который может извлекать данные из разных источников (тексты, таблицы, изображения).
-
-    Аргументы:
-    vectorstore: Векторное хранилище для хранения векторных представлений документов.
-    text_summaries: Список суммаризаций текстовых элементов.
-    texts: Список исходных текстов.
-    table_summaries: Список суммаризаций таблиц.
-    tables: Список исходных таблиц.
-    image_summaries: Список суммаризаций изображений.
-    images: Список изображений в формате base64.
-
-    Возвращает:
-    Созданный ретривер, который может извлекать данные из различных источников.
-    """
-
-    # Создаем хранилище для метаданных документов в памяти
-    store = InMemoryStore()
-    id_key = "doc_id"  # Ключ для идентификации документов в хранилище
-    # Создаем многофакторный ритривер
-    retriever = MultiVectorRetriever(
-        vectorstore=vectorstore,
-        docstore=store,
-        id_key=id_key
-    )
-    if text_summaries:
-        add_document_to_retr(retriever, text_summaries, texts)
-    if table_summaries:
-        add_document_to_retr(retriever, table_summaries, tables)
-    if image_summaries:
-        add_document_to_retr(retriever, image_summaries, images)
-
-    return retriever
 
 
 # Функция создания многофакторного ритривера для базы данных
@@ -508,59 +377,6 @@ print(f"начало отрисовки WEB-морды")
 # при первом запуске данные считываем из pkl файлов с диска при обновлении WEB страницы - из cache_data
 ########################################################################################################################
 # new variant
-#@st.cache_data
-def load_texts():
-    with open(texts_pkl, 'rb') as inp:
-        print(f"\t\tfile loaded - ok: {texts_pkl}")
-        return pickle.load(inp)
-
-#@st.cache_data
-def load_txts():
-    with open(txts_pkl, 'rb') as inp:
-        print(f"\t\tfile loaded - ok: {txts_pkl}")
-        return pickle.load(inp)
-
-#@st.cache_data
-def load_tables():
-    with open(tables_pkl, 'rb') as inp:
-        print(f"\t\tfile loaded - ok: {tables_pkl}")
-        return pickle.load(inp)
-
-#@st.cache_data
-def load_tbls():
-    with open(tbls_pkl, 'rb') as inp:
-        print(f"\t\tfile loaded - ok: {tbls_pkl}")
-        return pickle.load(inp)
-
-#@st.cache_data
-def load_text_summaries():
-    with open(text_summaries_pkl, 'rb') as inp:
-        print(f"\t\tfile loaded - ok: {text_summaries_pkl}")
-        return pickle.load(inp)
-
-#@st.cache_data
-def load_table_summaries():
-    with open(table_summaries_pkl, 'rb') as inp:
-        print(f"\t\tfile loaded - ok: {table_summaries_pkl}")
-        return pickle.load(inp)
-
-#@st.cache_data
-def load_img_base64_list():
-    with open(img_base64_list_pkl, 'rb') as inp:
-        print(f"\t\tfile loaded - ok: {img_base64_list_pkl}")
-        return pickle.load(inp)
-
-#@st.cache_data
-def load_image_summaries():
-    with open(image_summaries_pkl, 'rb') as inp:
-        print(f"\t\tfile loaded - ok: {image_summaries_pkl}")
-        return pickle.load(inp)
-
-#@st.cache_data
-def load_imgs():
-    with open(imgs_pkl, 'rb') as inp:
-        print(f"\t\tfile loaded - ok: {imgs_pkl}")
-        return pickle.load(inp)
 
 #@st.cache_data
 def load_all_vector_docs():
@@ -574,55 +390,9 @@ def load_all_id_docs():
         print(f"\t\tfile loaded - ok: {all_id_docs_pkl}")
         return pickle.load(inp)
 
-print(f"загрузка из сохраненных pkl файлов или из cache_data")
-texts = load_txts() # load_texts()
-tables = load_tbls() # load_tables()
-text_summaries = load_text_summaries()
-table_summaries = load_table_summaries()
-img_base64_list = load_img_base64_list()
-image_summaries = load_image_summaries()
-imgs = load_imgs()
-
-if not os.path.exists(all_vector_docs_pkl) or not os.path.exists(all_id_docs_pkl):
-    # подготавливаем векторное хранилище и хранилище документов
-    print(f"\t\tсоздание и сохранение на диск данных хранилищ векторов и документов")
-    all_indexes = []
-    all_vector_docs = []
-    all_docs = []
-
-    print(f"\t\t\tдобавляем тексты...")
-    id_docs, vector_docs = add_document(text_summaries)
-    all_indexes.extend(id_docs)
-    all_vector_docs.extend(vector_docs)
-    all_docs.extend(texts)
-
-    print(f"\t\t\tдобавляем таблицы...")
-    id_docs, vector_docs = add_document(table_summaries)
-    all_indexes.extend(id_docs)
-    all_vector_docs.extend(vector_docs)
-    all_docs.extend(tables)
-
-    print(f"\t\t\tдобавляем изображения...")
-    id_docs, vector_docs = add_document(image_summaries)
-    all_indexes.extend(id_docs)
-    all_vector_docs.extend(vector_docs)
-    all_docs.extend(imgs)
-
-    with open(all_vector_docs_pkl, 'wb') as outp:
-        pickle.dump(all_vector_docs, outp, pickle.HIGHEST_PROTOCOL)
-
-    # Create a list of docs with IDs
-    all_id_docs = []
-    for i, item in enumerate(all_docs):
-        all_id_docs.append((all_indexes[i], item.encode(),))
-
-    with open(all_id_docs_pkl, 'wb') as outp:
-        pickle.dump(all_id_docs, outp, pickle.HIGHEST_PROTOCOL)
-
-else:
-    print(f"\t\tзагрузка с диска данных хранилищ векторов и документов")
-    all_vector_docs = load_all_vector_docs()
-    all_id_docs = load_all_id_docs()
+print(f"загрузка анных хранилищ векторов и документов из сохраненных pkl файлов или из cache_data")
+all_vector_docs = load_all_vector_docs()
+all_id_docs = load_all_id_docs()
 
 
 ########################################################################################################################
