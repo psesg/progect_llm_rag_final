@@ -48,7 +48,7 @@ warnings.filterwarnings('ignore', category=DeprecationWarning)
 # published on https://pse-project-rag-pure.streamlit.app/
 # admin application via HitHub account  on https://share.streamlit.io/
 giga = True
-model_giga = "GigaChat-2-Max" # "GigaChat-2-Pro"
+model_giga = "GigaChat-2-Pro" # "GigaChat-2-Pro" "GigaChat-2-Max"
 model_emb = "Embeddings" # EmbeddingsGigaR
 if giga:
     credentials = get_giga_credentials()
@@ -107,6 +107,12 @@ print(f"\t\t\t{image_summaries_pkl}")
 
 imgs_pkl = os.path.join(path_to_pkl,"imgs_pkl.pkl")
 print(f"\t\t\t{imgs_pkl}")
+
+all_vector_docs_pkl = os.path.join(path_to_pkl,"all_vector_docs_pkl.pkl")
+print(f"\t\t\t{all_vector_docs_pkl}")
+
+all_id_docs_pkl = os.path.join(path_to_pkl,"all_id_docs_pkl.pkl")
+print(f"\t\t\t{all_id_docs_pkl}")
 
 model = "gpt-4o"   # "gpt-3.5-turbo"
 
@@ -382,9 +388,9 @@ def split_image_text_types(docs):
             b64_images.append(doc)
         else:
             texts.append(doc)
-    print (f"len(docs) = {len(docs)} len(texts) = {len(texts)} len(b64_images) = {len(b64_images)}\n")
-    for d in texts:
-        print(f'\t\trd = [{d}]')
+    print (f"\t\tlen(docs) = {len(docs)} len(texts) = {len(texts)} len(b64_images) = {len(b64_images)}\n")
+    # for d in texts:
+    #     print(f'\t\trd = [{d}]')
 
     return {"images": b64_images, "texts": texts}
 
@@ -473,8 +479,22 @@ def multi_modal_rag_chain(retriever):
 # точка входа - начало отрисовки WEB-морды
 ########################################################################################################################
 print(f"начало отрисовки WEB-морды")
-
-# st.title(":red[GPT]+:green[RAG]+:blue[Streamlit]:red[=Great!]:smiley:")
+# # включение/выключение RAG и вывод информации о проекте
+# rag_mode = True
+# if "rag_mode" not in st.session_state:
+#     st.session_state["rag_mode"] = True
+# else:
+#     rag_mode = st.session_state["rag_mode"]
+#
+# if "rag_mode" in st.session_state:
+#     rag_mode = st.checkbox("RAG", value=st.session_state["rag_mode"])
+#     st.session_state["rag_mode"] = rag_mode
+#
+# if rag_mode:
+#     st.title(":red[GPT]+:green[RAG]+:blue[Streamlit]:red[=Great!]:smiley:")
+# else:
+#     st.title(":red[GPT]+:blue[Streamlit]:red[=Good]:confused:")
+#
 # st.write("**Cource: :blue[LLM's - from architecture to building multimodal systems]**")
 # st.write("**2025.09.22 Panarin S.E. - project :green[Multimodal RAG system]**")
 # st.write(f"host: :blue[{hostname}] OS: :blue[{plat}] model: :red[{model}]")
@@ -542,6 +562,18 @@ def load_imgs():
         print(f"\t\tfile loaded - ok: {imgs_pkl}")
         return pickle.load(inp)
 
+#@st.cache_data
+def load_all_vector_docs():
+    with open(all_vector_docs_pkl, 'rb') as inp:
+        print(f"\t\tfile loaded - ok: {all_vector_docs_pkl}")
+        return pickle.load(inp)
+
+#@st.cache_data
+def load_all_id_docs():
+    with open(all_id_docs_pkl, 'rb') as inp:
+        print(f"\t\tfile loaded - ok: {all_id_docs_pkl}")
+        return pickle.load(inp)
+
 print(f"загрузка из сохраненных pkl файлов или из cache_data")
 texts = load_txts() # load_texts()
 tables = load_tbls() # load_tables()
@@ -550,57 +582,58 @@ table_summaries = load_table_summaries()
 img_base64_list = load_img_base64_list()
 image_summaries = load_image_summaries()
 imgs = load_imgs()
+
+if not os.path.exists(all_vector_docs_pkl) or not os.path.exists(all_id_docs_pkl):
+    # подготавливаем векторное хранилище и хранилище документов
+    print(f"\t\tсоздание и сохранение на диск данных хранилищ векторов и документов")
+    all_indexes = []
+    all_vector_docs = []
+    all_docs = []
+
+    print(f"\t\t\tдобавляем тексты...")
+    id_docs, vector_docs = add_document(text_summaries)
+    all_indexes.extend(id_docs)
+    all_vector_docs.extend(vector_docs)
+    all_docs.extend(texts)
+
+    print(f"\t\t\tдобавляем таблицы...")
+    id_docs, vector_docs = add_document(table_summaries)
+    all_indexes.extend(id_docs)
+    all_vector_docs.extend(vector_docs)
+    all_docs.extend(tables)
+
+    print(f"\t\t\tдобавляем изображения...")
+    id_docs, vector_docs = add_document(image_summaries)
+    all_indexes.extend(id_docs)
+    all_vector_docs.extend(vector_docs)
+    all_docs.extend(imgs)
+
+    with open(all_vector_docs_pkl, 'wb') as outp:
+        pickle.dump(all_vector_docs, outp, pickle.HIGHEST_PROTOCOL)
+
+    # Create a list of docs with IDs
+    all_id_docs = []
+    for i, item in enumerate(all_docs):
+        all_id_docs.append((all_indexes[i], item.encode(),))
+
+    with open(all_id_docs_pkl, 'wb') as outp:
+        pickle.dump(all_id_docs, outp, pickle.HIGHEST_PROTOCOL)
+
+else:
+    print(f"\t\tзагрузка с диска данных хранилищ векторов и документов")
+    all_vector_docs = load_all_vector_docs()
+    all_id_docs = load_all_id_docs()
+
+
 ########################################################################################################################
 # начало реального запуска RAG-pipeline
 # создание или загрузка из cache_resource объектов векторного хранилища, ретривера и RAG цепочки
 ########################################################################################################################
-# подготавливаем векторное  хранилище и хранилище документов
-print(f"\t\tподготавливаем векторное  хранилище и хранилище документов")
-all_indexes = []
-all_vector_docs = []
-all_docs = []
 
-print(f"\t\t\tдобавляем тексты...")
-id_docs, vector_docs = add_document(text_summaries)
-all_indexes.extend(id_docs)
-all_vector_docs.extend(vector_docs)
-all_docs.extend(texts)
-
-
-print(f"\t\t\tдобавляем таблицы...")
-id_docs, vector_docs = add_document(table_summaries)
-all_indexes.extend(id_docs)
-all_vector_docs.extend(vector_docs)
-all_docs.extend(tables)
-
-
-print(f"\t\t\tдобавляем изображения...")
-id_docs, vector_docs = add_document(image_summaries)
-all_indexes.extend(id_docs)
-all_vector_docs.extend(vector_docs)
-all_docs.extend(imgs)
-
-
-# Create a list of Document objects
-langchain_documents = []
-full_docs = []
-for i, item in enumerate(all_docs):
-    doc = Document(
-        page_content=item,
-        metadata={"doc_id": all_indexes[i]}
-    )
-    langchain_documents.append(doc)
-    full_docs.append((all_indexes[i], item,))
-
-# Serialize the documents before storing them
-serialized_docs = [(id, doc.encode()) for id, doc in full_docs]
-
-# Создаем хранилище для документов в памяти или на диске
-#all_docs_store = create_kv_docstore(fs)
 if not os.path.exists(path_to_ds):
     print(f"\t\tсоздаем хранилище для документов на диске")
     all_docs_store = LocalFileStore(path_to_ds)
-    all_docs_store.mset(serialized_docs)
+    all_docs_store.mset(all_id_docs)
 else:
     print(f"\t\tоткрываем хранилище для документов на диске")
     all_docs_store = LocalFileStore(path_to_ds)
@@ -609,11 +642,11 @@ else:
 # all_docs_store.mset(list(zip(all_indexes, all_docs)))
 
 # Get all keys
-all_keys = list(all_docs_store.yield_keys())
-values = all_docs_store.mget(all_keys)
-print(f'\t\tall_keys={len(all_keys)} values={len(values)}')
-for i in range(5):
-    print(f"\t\t\t{all_keys[i]}: {values[i].decode()}")
+# all_keys = list(all_docs_store.yield_keys())
+# values = all_docs_store.mget(all_keys)
+# print(f'\t\tall_keys={len(all_keys)} values={len(values)}')
+# for i in range(5):
+#     print(f"\t\t\t{all_keys[i]}: {values[i].decode()}")
 
 #@st.cache_resource
 def create_vectorstore(all_vector_docs):
@@ -627,37 +660,19 @@ def create_vectorstore(all_vector_docs):
     if not os.path.exists(path_to_db):
         print(f"\t\tсоздаем из массива суммаризированных документов векторное хранилище: {path_to_db}")
         vs = FAISS.from_documents(
-            # collection_name="pse_rag_sber_report",  # Название коллекции
             documents=all_vector_docs,
-            # persist_directory=path_to_db,
             embedding=embeddings
         )
         vs.save_local(folder_path=path_to_db, index_name="faiss_index")
-        # vs.persist()
     else:
         print(f"\t\tоткрываем существующее векторное хранилище: {path_to_db}")
         vs = FAISS.load_local(folder_path=path_to_db, index_name="faiss_index",embeddings=embeddings,
                               allow_dangerous_deserialization=True)
-        # vs = Chroma(
-        #     collection_name="pse_rag_sber_report",  # Название коллекции
-        #     persist_directory=path_to_db,
-        #     embedding_function=embeddings
-        # )
-        #vs.get()
     return vs
 
 #@st.cache_resource
 def create_retriever_multi_vector_img(vectorstore, all_docs_store):
     print(f"\t\tсоздаем ретривер и добавляем суммаризации текстов, таблиц и изображений")
-    # return create_multi_vector_retriever(
-    #     vectorstore,
-    #     text_summaries,
-    #     texts,
-    #     table_summaries,
-    #     tables,
-    #     image_summaries,
-    #     imgs #img_base64_list - for GigaChat will send describing text for GPT - base64 images
-    # )
     return create_new_multi_vector_retriever(vectorstore, all_docs_store)
 
 #@st.cache_resource
@@ -665,29 +680,37 @@ def create_chain_multimodal_rag():
     print(f"\t\tсоздаем RAG цепочку с использованием ретривера")
     return multi_modal_rag_chain(retriever_multi_vector_img)
 
-print(f"создание или загрузка из cache_resource объектов векторного хранилища, ретривера и RAG цепочки" )
-vectorstore = create_vectorstore(all_vector_docs)
-retriever_multi_vector_img = create_retriever_multi_vector_img(vectorstore, all_docs_store)
-chain_multimodal_rag = create_chain_multimodal_rag()
+if __name__ == "__main__":
+    print(f"создание или загрузка из cache_resource объектов векторного хранилища, ретривера и RAG цепочки" )
+    vectorstore = create_vectorstore(all_vector_docs)
+    retriever_multi_vector_img = create_retriever_multi_vector_img(vectorstore, all_docs_store)
+    chain_multimodal_rag = create_chain_multimodal_rag()
 
-# Пример запроса
-query = ("Каким учащимся подготовлен реферат об исследовании создания первых электрических элементов и альтернативных"
-         " источников энергии и каковы основные тезисы реферата?")
-query = "Что говорится в отчете Сбера о кредитах по амортизированной и справедливой стоимости на конец 2022 и 2023 года?"
-query = ("О чем страница отчета Сбера, где изображена женщина-велосипедист в защитном шлеме и очках на фоне размытого пейзажа?"
-         " Перечисли основные темы. Существуют ли на странице оформительские ошибки и если есть, то опиши их суть.")
-docs = retriever_multi_vector_img.get_relevant_documents(query, limit=6)
-print(f'get_relevant_documents len(docs) = {len(docs)})')
-for d in docs:
-    print(f'\t\trd = [{d.decode()}]')
-resp = chain_multimodal_rag.invoke(query)
-print(f'\n\t\tresp = [{resp}]')
+    # Пример запроса
+    query = ("Каким учащимся подготовлен реферат об исследовании создания первых электрических элементов и альтернативных"
+             " источников энергии и каковы основные тезисы реферата?")
+    query = "Что говорится в отчете Сбера о кредитах по амортизированной и справедливой стоимости на конец 2022 и 2023 года?"
+    query = ("О чем страница отчета Сбера, где изображена женщина-велосипедист в защитном шлеме и очках на фоне размытого пейзажа?"
+             " Перечисли основные темы. Существуют ли на странице оформительские ошибки и если есть, то опиши их суть.")
+    docs = retriever_multi_vector_img.get_relevant_documents(query, limit=6)
+    print(f'\t\tget_relevant_documents len(docs) = {len(docs)})')
+    print(f'\n\t\t__name__ = [{__name__}]')
+    # for d in docs:
+    #     print(f'\t\trd = [{d.decode()}]')
+    resp = chain_multimodal_rag.invoke(query)
+    print(f'\n\t\tresp = [{resp}]')
+else:
+    print(f'\n\t\t__name__ = [{__name__}]')
 exit(0)
 ########################################################################################################################
 # работа с LLM с RAG
 ########################################################################################################################
 hello = "Привет! Готов отвечать на любые вопросы - спрашивай!"
 print(f"{hello}")
+# системный промпт для варианта без RAG
+sysp = ("Ты — эксперт и аналитик, выдающий ответ/заключение на заданный вопрос, тему. Если конкретной информации на"
+        " заданный вопрос или тему нет или недостаточно, то ничего не придумывай, просто ответь, что у тебя нет"
+        " информации или ее недостаточно. ")
 
 # Initialize chat history
 if "messages" not in st.session_state:
@@ -709,7 +732,10 @@ if prompt := st.chat_input(hello,
         st.markdown(prompt.text)
     # Display assistant response in chat message container
     with st.chat_message("assistant"):
-        resp = chain_multimodal_rag.invoke(str(st.session_state.messages))     # .invoke(str(prompt))
+        if rag_mode:
+            resp = chain_multimodal_rag.invoke(str(st.session_state.messages))     # .invoke(str(prompt))
+        else:
+            resp = chain_multimodal_worag.invoke(sysp + str(st.session_state.messages)) # .invoke(sysp + str(prompt))
         print(resp)
         st.write(resp)
     st.session_state.messages.append({"role": "assistant", "content": resp})
