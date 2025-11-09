@@ -389,8 +389,8 @@ def split_image_text_types(docs):
         else:
             texts.append(doc)
     print (f"\t\tlen(docs) = {len(docs)} len(texts) = {len(texts)} len(b64_images) = {len(b64_images)}\n")
-    # for d in texts:
-    #     print(f'\t\trd = [{d}]')
+    for d in texts:
+        print(f'\t\trd = [{d}]')
 
     return {"images": b64_images, "texts": texts}
 
@@ -680,65 +680,63 @@ def create_chain_multimodal_rag():
     print(f"\t\tсоздаем RAG цепочку с использованием ретривера")
     return multi_modal_rag_chain(retriever_multi_vector_img)
 
-if __name__ == "__main__":
-    print(f"создание или загрузка из cache_resource объектов векторного хранилища, ретривера и RAG цепочки" )
-    vectorstore = create_vectorstore(all_vector_docs)
-    retriever_multi_vector_img = create_retriever_multi_vector_img(vectorstore, all_docs_store)
-    chain_multimodal_rag = create_chain_multimodal_rag()
 
-    # Пример запроса
-    query = ("Каким учащимся подготовлен реферат об исследовании создания первых электрических элементов и альтернативных"
-             " источников энергии и каковы основные тезисы реферата?")
-    query = "Что говорится в отчете Сбера о кредитах по амортизированной и справедливой стоимости на конец 2022 и 2023 года?"
-    query = ("О чем страница отчета Сбера, где изображена женщина-велосипедист в защитном шлеме и очках на фоне размытого пейзажа?"
-             " Перечисли основные темы. Существуют ли на странице оформительские ошибки и если есть, то опиши их суть.")
-    docs = retriever_multi_vector_img.get_relevant_documents(query, limit=6)
-    print(f'\t\tget_relevant_documents len(docs) = {len(docs)})')
-    print(f'\n\t\t__name__ = [{__name__}]')
-    # for d in docs:
-    #     print(f'\t\trd = [{d.decode()}]')
-    resp = chain_multimodal_rag.invoke(query)
-    print(f'\n\t\tresp = [{resp}]')
-else:
-    print(f'\n\t\t__name__ = [{__name__}]')
-exit(0)
+print(f"создание или загрузка из cache_resource объектов векторного хранилища, ретривера и RAG цепочки" )
+vectorstore = create_vectorstore(all_vector_docs)
+retriever_multi_vector_img = create_retriever_multi_vector_img(vectorstore, all_docs_store)
+chain_multimodal_rag = create_chain_multimodal_rag()
+
+# Пример запроса
+query = ("Каким учащимся подготовлен реферат об исследовании создания первых электрических элементов и альтернативных"
+         " источников энергии и каковы основные тезисы реферата?")
+query = "Что говорится в отчете Сбера о кредитах по амортизированной и справедливой стоимости на конец 2022 и 2023 года?"
+query = ("О чем страница отчета Сбера, где изображена женщина-велосипедист в защитном шлеме и очках на фоне размытого пейзажа?"
+         " Перечисли основные темы. Существуют ли на странице оформительские ошибки и если есть, то опиши их суть.")
+docs = retriever_multi_vector_img.get_relevant_documents(query, limit=6)
+print(f'\t\tget_relevant_documents len(docs) = {len(docs)})')
+
+# for d in docs:
+#     print(f'\t\trd = [{d.decode()}]')
+resp = chain_multimodal_rag.invoke(query)
+print(f'\n\t\tresp = [{resp}]')
+
 ########################################################################################################################
 # работа с LLM с RAG
 ########################################################################################################################
-hello = "Привет! Готов отвечать на любые вопросы - спрашивай!"
-print(f"{hello}")
-# системный промпт для варианта без RAG
-sysp = ("Ты — эксперт и аналитик, выдающий ответ/заключение на заданный вопрос, тему. Если конкретной информации на"
-        " заданный вопрос или тему нет или недостаточно, то ничего не придумывай, просто ответь, что у тебя нет"
-        " информации или ее недостаточно. ")
-
-# Initialize chat history
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-
-# Display chat messages from history on app rerun
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
-
-# Accept user input
-if prompt := st.chat_input(hello,
-                           accept_file="multiple",
-                           file_type=["jpg"]):
-    # Add user message to chat history
-    st.session_state.messages.append({"role": "user", "content": prompt.text})
-    # Display user message in chat message container
-    with st.chat_message("user"):
-        st.markdown(prompt.text)
-    # Display assistant response in chat message container
-    with st.chat_message("assistant"):
-        if rag_mode:
-            resp = chain_multimodal_rag.invoke(str(st.session_state.messages))     # .invoke(str(prompt))
-        else:
-            resp = chain_multimodal_worag.invoke(sysp + str(st.session_state.messages)) # .invoke(sysp + str(prompt))
-        print(resp)
-        st.write(resp)
-    st.session_state.messages.append({"role": "assistant", "content": resp})
+# hello = "Привет! Готов отвечать на любые вопросы - спрашивай!"
+# print(f"{hello}")
+# # системный промпт для варианта без RAG
+# sysp = ("Ты — эксперт и аналитик, выдающий ответ/заключение на заданный вопрос, тему. Если конкретной информации на"
+#         " заданный вопрос или тему нет или недостаточно, то ничего не придумывай, просто ответь, что у тебя нет"
+#         " информации или ее недостаточно. ")
+#
+# # Initialize chat history
+# if "messages" not in st.session_state:
+#     st.session_state.messages = []
+#
+# # Display chat messages from history on app rerun
+# for message in st.session_state.messages:
+#     with st.chat_message(message["role"]):
+#         st.markdown(message["content"])
+#
+# # Accept user input
+# if prompt := st.chat_input(hello,
+#                            accept_file="multiple",
+#                            file_type=["jpg"]):
+#     # Add user message to chat history
+#     st.session_state.messages.append({"role": "user", "content": prompt.text})
+#     # Display user message in chat message container
+#     with st.chat_message("user"):
+#         st.markdown(prompt.text)
+#     # Display assistant response in chat message container
+#     with st.chat_message("assistant"):
+#         if rag_mode:
+#             resp = chain_multimodal_rag.invoke(str(st.session_state.messages))     # .invoke(str(prompt))
+#         else:
+#             resp = chain_multimodal_worag.invoke(sysp + str(st.session_state.messages)) # .invoke(sysp + str(prompt))
+#         print(resp)
+#         st.write(resp)
+#     st.session_state.messages.append({"role": "assistant", "content": resp})
 
 ########################################################################################################################
 # тестовые вопросы для проверки RAG
