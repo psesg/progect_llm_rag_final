@@ -43,7 +43,7 @@ warnings.filterwarnings('ignore', category=DeprecationWarning)
 # published on https://pse-project-rag-pure.streamlit.app/
 # admin application via HitHub account  on https://share.streamlit.io/
 
-model_giga = "GigaChat-2-Pro" # "GigaChat-2-Pro" "GigaChat-2-Max"
+model_giga = "GigaChat-2-Max" # "GigaChat-2-Pro" "GigaChat-2-Max"
 model_emb = "Embeddings" # EmbeddingsGigaR
 
 credentials = get_giga_credentials()
@@ -281,7 +281,8 @@ def multi_modal_rag_chain(retriever):
                     auth_url=url_oauth,
                     temperature=0,
                     profanity_check=False,
-                    max_tokens=3000)
+                    # max_tokens=3000
+                            )
 
     # Определяем цепочку обработки запросов
     chain = (
@@ -315,7 +316,8 @@ def multi_modal_worag_chain(retriever):
                     auth_url=url_oauth,
                     temperature=0,
                     profanity_check=False,
-                    max_tokens=3000)
+                    # max_tokens=3000
+                            )
 
     # Определяем цепочку обработки запросов
     chain = (
@@ -384,6 +386,7 @@ def create_vectorstore(all_vector_docs):
                 auth_url=url_oauth,
                 scope="GIGACHAT_API_CORP",
                 verify_ssl_certs=False,
+                # max_tokens=3000,
             )
     if not os.path.exists(path_to_db):
         print(f"\t\tсоздаем векторное хранилище на диске: {path_to_db}")
@@ -452,18 +455,18 @@ chain_multimodal_worag = create_chain_multimodal_worag()
 #          " источников энергии и каковы основные тезисы реферата?")
 # query = "Что говорится в отчете Сбера о кредитах по амортизированной и справедливой стоимости на конец 2022 и 2023 года?"
 
-query = ("О чем страница отчета Сбера, где изображена женщина-велосипедист в защитном шлеме и очках на фоне размытого пейзажа?"
-         " Перечисли основные темы. Существуют ли на странице оформительские ошибки и если есть, то опиши их суть.")
-print(f"\t\tquery=[{query}]")
-
-docs = retriever_multi_vector_img.get_relevant_documents(query, limit=6)
-print(f'\t\tget_relevant_documents len(docs) = {len(docs)})')
-# for d in docs:
-#     print(f'\t\trd = [{d.decode()}]')
-
-resp = chain_multimodal_rag.invoke(query)
-print(f'\n\t\tLLM resp = [{resp}]')
-exit(0)
+# query = ("О чем страница отчета Сбера, где изображена женщина-велосипедист в защитном шлеме и очках на фоне размытого пейзажа?"
+#          " Перечисли основные темы. Существуют ли на странице оформительские ошибки и если есть, то опиши их суть.")
+# print(f"\t\tquery=[{query}]")
+#
+# docs = retriever_multi_vector_img.get_relevant_documents(query, limit=6)
+# print(f'\t\tget_relevant_documents len(docs) = {len(docs)})')
+# # for d in docs:
+# #     print(f'\t\trd = [{d.decode()}]')
+#
+# resp = chain_multimodal_rag.invoke(query)
+# print(f'\n\t\tLLM resp = [{resp}]')
+# exit(0)
 ########################################################################################################################
 # работа с LLM с RAG
 ########################################################################################################################
