@@ -390,7 +390,7 @@ def load_all_id_docs():
         print(f"\t\tfile loaded - ok: {all_id_docs_pkl}")
         return pickle.load(inp)
 
-print(f"загрузка анных хранилищ векторов и документов из сохраненных pkl файлов или из cache_data")
+print(f"загрузка данных хранилищ векторов и документов из сохраненных pkl файлов или из cache_data")
 all_vector_docs = load_all_vector_docs()
 all_id_docs = load_all_id_docs()
 
