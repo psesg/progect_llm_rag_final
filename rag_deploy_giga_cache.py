@@ -6,10 +6,8 @@ import pickle
 import io
 import re
 import base64
-import uuid
 import warnings
 import platform
-import socket as sckt
 from PIL import Image
 from langchain.retrievers.multi_vector import MultiVectorRetriever
 from langchain.storage import LocalFileStore
@@ -17,14 +15,13 @@ from langchain_community.vectorstores import FAISS
 from langchain_core.documents import Document
 from langchain_core.runnables import RunnableLambda, RunnablePassthrough
 from langchain_core.messages import HumanMessage
-from langchain_openai import ChatOpenAI
 from langchain_core.output_parsers import StrOutputParser
 import streamlit as st
 import logging
+
 from giga_util import get_giga_credentials, get_giga_url_access_mode, get_giga_token_access
 from langchain_gigachat.embeddings.gigachat import GigaChatEmbeddings
 from langchain_gigachat.chat_models import GigaChat
-from langchain.storage._lc_store import create_kv_docstore
 
 if platform.system() == "Linux": # or platform.system() == "Darwin"
     # next lines for fix streamlit: Your system has an unsupported version of sqlite3.
@@ -45,103 +42,45 @@ warnings.filterwarnings('ignore', category=DeprecationWarning)
 
 # published on https://pse-project-rag-pure.streamlit.app/
 # admin application via HitHub account  on https://share.streamlit.io/
-giga = True
+
 model_giga = "GigaChat-2-Pro" # "GigaChat-2-Pro" "GigaChat-2-Max"
 model_emb = "Embeddings" # EmbeddingsGigaR
-if giga:
-    credentials = get_giga_credentials()
-    if credentials == '':
-        logger.critical('OS variable: GIGACHAT_CREDENTIALS not set')
-        exit(1)
-    # get url_oauth and access_mode
-    url_oauth, access_mode = get_giga_url_access_mode()
-    rc, tk = get_giga_token_access(url_oauth, credentials)
-    if rc:
-        payload = {}
-        headers = {
-            'Accept': 'application/json',
-            'Authorization': f'Bearer {tk}'
-        }
-    else:
-        logger.critical('Can''t get authorization token to GigaChat')
-        exit(1)
 
-# пути к файлам
-print(f"setting up output file paths")
-if giga:
-    path_to_pkl = "./giga_pickles"
-    path_to_db = "./db_vector"
-    path_to_ds = "./db_store"
+credentials = get_giga_credentials()
+if credentials == '':
+    logger.critical('OS variable: GIGACHAT_CREDENTIALS not set')
+    exit(1)
+# get url_oauth access_mode host plat
+url_oauth, access_mode = get_giga_url_access_mode()
+hostname = access_mode['hostname']
+plat = access_mode['plat']
+rc, tk = get_giga_token_access(url_oauth, credentials)
+
+if rc:
+    payload = {}
+    headers = {
+        'Accept': 'application/json',
+        'Authorization': f'Bearer {tk}'
+    }
 else:
-    path_to_pkl = "./pickles"
+    logger.critical('Can''t get authorization token to GigaChat')
+    exit(1)
 
 # пути к файлам
+print(f"setting up input file paths")
+path_to_pkl = "./giga_pickles"
+path_to_db = "./db_vector"
+path_to_ds = "./db_store"
 
 all_vector_docs_pkl = os.path.join(path_to_pkl,"all_vector_docs_pkl.pkl")
-print(f"\t\t\t{all_vector_docs_pkl}")
+print(f"\t\t{all_vector_docs_pkl}")
 
 all_id_docs_pkl = os.path.join(path_to_pkl,"all_id_docs_pkl.pkl")
-print(f"\t\t\t{all_id_docs_pkl}")
+print(f"\t\t{all_id_docs_pkl}")
 
-model = "gpt-4o"   # "gpt-3.5-turbo"
-
-# получение имения хоста и платформы для дальнейшего вывода
-hostname = sckt.gethostname()
-plat = platform.system()
-
+########################################################################################################################
 # определение необходимых для запуска RAG-pipeline PDF файла функций
 ########################################################################################################################
-
-# Функция добавления документов в ритривер
-def add_document(doc_summaries):
-    """
-    Функция для добавления документов и их метаданных в ритривер.
-
-    Аргументы:
-    retriever: Ретривер, в который будут добавляться документы.
-    doc_summaries: Список суммаризаций документов.
-    doc_contents: Список исходных содержимых документов.
-    """
-    # Генерируем уникальные идентификаторы для каждого документа
-    doc_ids = [str(uuid.uuid4()) for _ in doc_summaries]
-    id_key = "doc_id"  # Ключ для идентификации документов в хранилище
-    source_document = 'source_document'
-    page_number = 'page_number'
-    paragraph_number = 'paragraph_number'
-    text = 'text'
-    table_content = 'table_content'
-    image_content = 'image_content'
-    image_path = 'image_path'
-
-    # Создаем документы для векторного хранилища из суммаризаций
-    # summary_docs = [
-    #     Document(page_content=str(s.get('text')), metadata={id_key: doc_ids[i], source_document: s.get('source_document')})
-    #     for i, s in enumerate(doc_summaries)
-    # ]
-    summary_docs = []
-    m_d = {}
-    for i, s in enumerate(doc_summaries):
-        if text in s:
-            p_c = str(s.get('text'))
-        if table_content in s:
-            p_c = str(s.get('table_content'))
-        if image_content in s:
-            p_c = str(s.get('image_content'))
-        m_d.update({id_key: doc_ids[i]})
-        if source_document in s:
-            m_d.update({source_document: str(s.get(source_document))})
-        if page_number in s:
-            m_d.update({page_number: str(s.get(page_number))})
-        if paragraph_number in s:
-            m_d.update({paragraph_number: str(s.get(paragraph_number))})
-        if image_path in s:
-            m_d.update({image_path: str(s.get(image_path))})
-        doc = Document(page_content=p_c, metadata=m_d)
-        summary_docs.append(doc)
-
-    print(f'\t\tsummary_docs = [{summary_docs[:1]}]')
-    return doc_ids, summary_docs
-
 
 # Функция создания многофакторного ритривера для базы данных
 def create_new_multi_vector_retriever(vectorstore, all_docs_store):
@@ -258,9 +197,24 @@ def split_image_text_types(docs):
         else:
             texts.append(doc)
     print (f"\t\tlen(docs) = {len(docs)} len(texts) = {len(texts)} len(b64_images) = {len(b64_images)}\n")
-    for d in texts:
-        print(f'\t\trd = [{d}]')
+    # for d in texts:
+    #     print(f'\t\trd = [{d}]')
 
+    return {"images": b64_images, "texts": texts}
+
+
+def split_image_text_types_worag(docs):
+    """
+    Разделяет документы на изображения и текстовые данные.
+
+    Аргументы:
+    docs: Список документов, содержащих изображения (в формате base64) и текст.
+
+    Возвращает:
+    Словарь с двумя списками: изображения и тексты.
+    """
+    b64_images = []
+    texts = []
     return {"images": b64_images, "texts": texts}
 
 
@@ -318,18 +272,17 @@ def multi_modal_rag_chain(retriever):
     Возвращает:
     Цепочка для обработки запросов с учетом текста и изображений.
     """
-    # OpenAI API ключ в os.environ["OPENAI_API_KEY"]
-    if giga:
-        # Авторизация в сервисе GigaChat
-        gen_ai_model = GigaChat(model=model_giga,
-                        credentials=credentials,
-                        verify_ssl_certs=False,
-                        scope="GIGACHAT_API_CORP",
-                        auth_url=url_oauth,
-                        temperature=0,
-                        profanity_check=False)
-    else:
-        gen_ai_model = ChatOpenAI(temperature=0, model=model, max_tokens=3000)
+
+    # Авторизация в сервисе GigaChat
+    gen_ai_model = GigaChat(model=model_giga,
+                    credentials=credentials,
+                    verify_ssl_certs=False,
+                    scope="GIGACHAT_API_CORP",
+                    auth_url=url_oauth,
+                    temperature=0,
+                    profanity_check=False,
+                    max_tokens=3000)
+
     # Определяем цепочку обработки запросов
     chain = (
         {
@@ -343,11 +296,44 @@ def multi_modal_rag_chain(retriever):
 
     return chain
 
+def multi_modal_worag_chain(retriever):
+    """
+    Создает RAG цепочку для работы с мультимодальными запросами, включая текст и изображения.
+
+    Аргументы:
+    retriever: Ритривер для получения данных.
+
+    Возвращает:
+    Цепочка для обработки запросов с учетом текста и изображений.
+    """
+
+    # Авторизация в сервисе GigaChat
+    gen_ai_model = GigaChat(model=model_giga,
+                    credentials=credentials,
+                    verify_ssl_certs=False,
+                    scope="GIGACHAT_API_CORP",
+                    auth_url=url_oauth,
+                    temperature=0,
+                    profanity_check=False,
+                    max_tokens=3000)
+
+    # Определяем цепочку обработки запросов
+    chain = (
+        {
+            "context": retriever | RunnableLambda(split_image_text_types_worag),
+            "question": RunnablePassthrough(),
+        }
+        | RunnableLambda(img_prompt_func)
+        | gen_ai_model
+        | StrOutputParser()
+    )
+
+    return chain
 
 ########################################################################################################################
-# точка входа - начало отрисовки WEB-морды
+#  начало отрисовки WEB-морды
 ########################################################################################################################
-print(f"начало отрисовки WEB-морды")
+# print(f"начало отрисовки WEB-морды")
 # # включение/выключение RAG и вывод информации о проекте
 # rag_mode = True
 # if "rag_mode" not in st.session_state:
@@ -366,7 +352,7 @@ print(f"начало отрисовки WEB-морды")
 #
 # st.write("**Cource: :blue[LLM's - from architecture to building multimodal systems]**")
 # st.write("**2025.09.22 Panarin S.E. - project :green[Multimodal RAG system]**")
-# st.write(f"host: :blue[{hostname}] OS: :blue[{plat}] model: :red[{model}]")
+# st.write(f"host: :blue[{hostname}] OS: :blue[{plat}] GigaChat: :red[{model_giga}]")
 #
 # if st.button("Reset dialog"):
 #     # clear chat history
@@ -375,38 +361,63 @@ print(f"начало отрисовки WEB-морды")
 
 ########################################################################################################################
 # при первом запуске данные считываем из pkl файлов с диска при обновлении WEB страницы - из cache_data
+# создание или загрузка из cache_resource объектов векторного хранилища, ретривера и RAG цепочки
 ########################################################################################################################
-# new variant
 
-#@st.cache_data
+@st.cache_data
 def load_all_vector_docs():
     with open(all_vector_docs_pkl, 'rb') as inp:
         print(f"\t\tfile loaded - ok: {all_vector_docs_pkl}")
         return pickle.load(inp)
 
-#@st.cache_data
+@st.cache_data
 def load_all_id_docs():
     with open(all_id_docs_pkl, 'rb') as inp:
         print(f"\t\tfile loaded - ok: {all_id_docs_pkl}")
         return pickle.load(inp)
 
-print(f"загрузка данных хранилищ векторов и документов из сохраненных pkl файлов или из cache_data")
-all_vector_docs = load_all_vector_docs()
-all_id_docs = load_all_id_docs()
+@st.cache_resource
+def create_vectorstore(all_vector_docs):
+    embeddings = GigaChatEmbeddings(
+                model=model_emb,
+                credentials=credentials,
+                auth_url=url_oauth,
+                scope="GIGACHAT_API_CORP",
+                verify_ssl_certs=False,
+            )
+    if not os.path.exists(path_to_db):
+        print(f"\t\tсоздаем векторное хранилище на диске: {path_to_db}")
+        vs = FAISS.from_documents(
+            documents=all_vector_docs,
+            embedding=embeddings
+        )
+        vs.save_local(folder_path=path_to_db, index_name="faiss_index")
+    else:
+        print(f"\t\tоткрываем векторное хранилище с диска: {path_to_db} или hash памяти")
+        vs = FAISS.load_local(folder_path=path_to_db, index_name="faiss_index",embeddings=embeddings,
+                              allow_dangerous_deserialization=True)
+    return vs
 
+@st.cache_resource
+def create_retriever_multi_vector_img(_vectorstore, _all_docs_store): # _ underscore sign in name that object not hashable
+    print(f"\t\tсоздаем ретривер и добавляем суммаризации текстов, таблиц и изображений")
+    return create_new_multi_vector_retriever(vectorstore, all_docs_store)
+
+@st.cache_resource
+def create_chain_multimodal_rag():
+    print(f"\t\tсоздаем цепочку с RAG")
+    return multi_modal_rag_chain(retriever_multi_vector_img)
+
+@st.cache_resource
+def create_chain_multimodal_worag():
+    print(f"\t\tсоздаем цепочку без RAG")
+    return multi_modal_worag_chain(retriever_multi_vector_img)
 
 ########################################################################################################################
 # начало реального запуска RAG-pipeline
 # создание или загрузка из cache_resource объектов векторного хранилища, ретривера и RAG цепочки
 ########################################################################################################################
 
-if not os.path.exists(path_to_ds):
-    print(f"\t\tсоздаем хранилище для документов на диске")
-    all_docs_store = LocalFileStore(path_to_ds)
-    all_docs_store.mset(all_id_docs)
-else:
-    print(f"\t\tоткрываем хранилище для документов на диске")
-    all_docs_store = LocalFileStore(path_to_ds)
 
 # all_docs_store = InMemoryStore()
 # all_docs_store.mset(list(zip(all_indexes, all_docs)))
@@ -418,95 +429,104 @@ else:
 # for i in range(5):
 #     print(f"\t\t\t{all_keys[i]}: {values[i].decode()}")
 
-#@st.cache_resource
-def create_vectorstore(all_vector_docs):
-    embeddings = GigaChatEmbeddings(
-                model=model_emb,
-                credentials=credentials,
-                auth_url=url_oauth,
-                scope="GIGACHAT_API_CORP",
-                verify_ssl_certs=False,
-            )
-    if not os.path.exists(path_to_db):
-        print(f"\t\tсоздаем из массива суммаризированных документов векторное хранилище: {path_to_db}")
-        vs = FAISS.from_documents(
-            documents=all_vector_docs,
-            embedding=embeddings
-        )
-        vs.save_local(folder_path=path_to_db, index_name="faiss_index")
-    else:
-        print(f"\t\tоткрываем существующее векторное хранилище: {path_to_db}")
-        vs = FAISS.load_local(folder_path=path_to_db, index_name="faiss_index",embeddings=embeddings,
-                              allow_dangerous_deserialization=True)
-    return vs
+print(f"загрузка данных хранилищ векторов и документов из сохраненных pkl файлов или из cache_data")
+all_vector_docs = load_all_vector_docs()
+all_id_docs = load_all_id_docs()
 
-#@st.cache_resource
-def create_retriever_multi_vector_img(vectorstore, all_docs_store):
-    print(f"\t\tсоздаем ретривер и добавляем суммаризации текстов, таблиц и изображений")
-    return create_new_multi_vector_retriever(vectorstore, all_docs_store)
+if not os.path.exists(path_to_ds):
+    print(f"\t\tсоздаем хранилище для документов на диске: {path_to_ds}")
+    all_docs_store = LocalFileStore(path_to_ds)
+    all_docs_store.mset(all_id_docs)
+else:
+    print(f"\t\tоткрываем хранилище для документов с диска: {path_to_ds} или hash памяти")
+    all_docs_store = LocalFileStore(path_to_ds)
 
-#@st.cache_resource
-def create_chain_multimodal_rag():
-    print(f"\t\tсоздаем RAG цепочку с использованием ретривера")
-    return multi_modal_rag_chain(retriever_multi_vector_img)
-
-
-print(f"создание или загрузка из cache_resource объектов векторного хранилища, ретривера и RAG цепочки" )
 vectorstore = create_vectorstore(all_vector_docs)
 retriever_multi_vector_img = create_retriever_multi_vector_img(vectorstore, all_docs_store)
 chain_multimodal_rag = create_chain_multimodal_rag()
+chain_multimodal_worag = create_chain_multimodal_worag()
+
 
 # Пример запроса
-query = ("Каким учащимся подготовлен реферат об исследовании создания первых электрических элементов и альтернативных"
-         " источников энергии и каковы основные тезисы реферата?")
-query = "Что говорится в отчете Сбера о кредитах по амортизированной и справедливой стоимости на конец 2022 и 2023 года?"
+# query = ("Каким учащимся подготовлен реферат об исследовании создания первых электрических элементов и альтернативных"
+#          " источников энергии и каковы основные тезисы реферата?")
+# query = "Что говорится в отчете Сбера о кредитах по амортизированной и справедливой стоимости на конец 2022 и 2023 года?"
+
 query = ("О чем страница отчета Сбера, где изображена женщина-велосипедист в защитном шлеме и очках на фоне размытого пейзажа?"
          " Перечисли основные темы. Существуют ли на странице оформительские ошибки и если есть, то опиши их суть.")
+print(f"\t\tquery=[{query}]")
+
 docs = retriever_multi_vector_img.get_relevant_documents(query, limit=6)
 print(f'\t\tget_relevant_documents len(docs) = {len(docs)})')
-
 # for d in docs:
 #     print(f'\t\trd = [{d.decode()}]')
-resp = chain_multimodal_rag.invoke(query)
-print(f'\n\t\tresp = [{resp}]')
 
+resp = chain_multimodal_rag.invoke(query)
+print(f'\n\t\tLLM resp = [{resp}]')
+exit(0)
 ########################################################################################################################
 # работа с LLM с RAG
 ########################################################################################################################
-# hello = "Привет! Готов отвечать на любые вопросы - спрашивай!"
-# print(f"{hello}")
-# # системный промпт для варианта без RAG
-# sysp = ("Ты — эксперт и аналитик, выдающий ответ/заключение на заданный вопрос, тему. Если конкретной информации на"
-#         " заданный вопрос или тему нет или недостаточно, то ничего не придумывай, просто ответь, что у тебя нет"
-#         " информации или ее недостаточно. ")
-#
-# # Initialize chat history
-# if "messages" not in st.session_state:
-#     st.session_state.messages = []
-#
-# # Display chat messages from history on app rerun
-# for message in st.session_state.messages:
-#     with st.chat_message(message["role"]):
-#         st.markdown(message["content"])
-#
-# # Accept user input
-# if prompt := st.chat_input(hello,
-#                            accept_file="multiple",
-#                            file_type=["jpg"]):
-#     # Add user message to chat history
-#     st.session_state.messages.append({"role": "user", "content": prompt.text})
-#     # Display user message in chat message container
-#     with st.chat_message("user"):
-#         st.markdown(prompt.text)
-#     # Display assistant response in chat message container
-#     with st.chat_message("assistant"):
-#         if rag_mode:
-#             resp = chain_multimodal_rag.invoke(str(st.session_state.messages))     # .invoke(str(prompt))
-#         else:
-#             resp = chain_multimodal_worag.invoke(sysp + str(st.session_state.messages)) # .invoke(sysp + str(prompt))
-#         print(resp)
-#         st.write(resp)
-#     st.session_state.messages.append({"role": "assistant", "content": resp})
+print(f"начало отрисовки WEB-морды")
+# включение/выключение RAG и вывод информации о проекте
+rag_mode = True
+if "rag_mode" not in st.session_state:
+    st.session_state["rag_mode"] = True
+else:
+    rag_mode = st.session_state["rag_mode"]
+
+if "rag_mode" in st.session_state:
+    rag_mode = st.checkbox("RAG", value=st.session_state["rag_mode"])
+    st.session_state["rag_mode"] = rag_mode
+
+if rag_mode:
+    st.title(":red[GPT]+:green[RAG]+:blue[Streamlit]:red[=Great!]:smiley:")
+else:
+    st.title(":red[GPT]+:blue[Streamlit]:red[=Good]:confused:")
+
+st.write("**Cource: :blue[LLM's - from architecture to building multimodal systems]**")
+st.write("**2025.09.22 Panarin S.E. - project :green[Multimodal RAG system]**")
+st.write(f"host: :blue[{hostname}] OS: :blue[{plat}] GigaChat: :red[{model_giga}]")
+
+if st.button("Reset dialog"):
+    # clear chat history
+    if "messages" in st.session_state:
+        st.session_state.messages.clear()
+
+hello = "Привет! Готов отвечать на любые вопросы - спрашивай!"
+print(f"{hello}")
+# системный промпт для варианта без RAG
+sysp = ("Ты — эксперт и аналитик, выдающий ответ/заключение на заданный вопрос, тему. Если конкретной информации на"
+        " заданный вопрос или тему нет или недостаточно, то ничего не придумывай, просто ответь, что у тебя нет"
+        " информации или ее недостаточно. ")
+
+# Initialize chat history
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+# Display chat messages from history on app rerun
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
+
+# Accept user input
+if prompt := st.chat_input(hello,
+                           accept_file="multiple",
+                           file_type=["jpg"]):
+    # Add user message to chat history
+    st.session_state.messages.append({"role": "user", "content": prompt.text})
+    # Display user message in chat message container
+    with st.chat_message("user"):
+        st.markdown(prompt.text)
+    # Display assistant response in chat message container
+    with st.chat_message("assistant"):
+        if rag_mode:
+            resp = chain_multimodal_rag.invoke(str(st.session_state.messages))     # .invoke(str(prompt))
+        else:
+            resp = chain_multimodal_worag.invoke(sysp + str(st.session_state.messages)) # .invoke(sysp + str(prompt))
+        print(resp)
+        st.write(resp)
+    st.session_state.messages.append({"role": "assistant", "content": resp})
 
 ########################################################################################################################
 # тестовые вопросы для проверки RAG
