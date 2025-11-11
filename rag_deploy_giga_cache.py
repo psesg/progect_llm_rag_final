@@ -44,7 +44,7 @@ warnings.filterwarnings('ignore', category=DeprecationWarning)
 # admin application via HitHub account  on https://share.streamlit.io/
 
 model_giga = "GigaChat-2-Max" # "GigaChat-2-Pro" "GigaChat-2-Max"
-model_emb = "Embeddings" # EmbeddingsGigaR
+model_emb = "Embeddings" # EmbeddingsGigaR  Embeddings
 
 credentials = get_giga_credentials()
 if credentials == '':
@@ -501,7 +501,7 @@ print(f"{hello}")
 # системный промпт для варианта без RAG
 sysp = ("Ты — эксперт и аналитик, выдающий ответ/заключение на заданный вопрос, тему. Если конкретной информации на"
         " заданный вопрос или тему нет или недостаточно, то ничего не придумывай, просто ответь, что у тебя нет"
-        " информации или ее недостаточно. ")
+        " информации или ее недостаточно.\n")
 
 # Initialize chat history
 if "messages" not in st.session_state:
@@ -524,9 +524,9 @@ if prompt := st.chat_input(hello,
     # Display assistant response in chat message container
     with st.chat_message("assistant"):
         if rag_mode:
-            resp = chain_multimodal_rag.invoke(str(st.session_state.messages))     # .invoke(str(prompt))
+            resp = chain_multimodal_rag.invoke(str(prompt))    #  .invoke(str(st.session_state.messages))
         else:
-            resp = chain_multimodal_worag.invoke(sysp + str(st.session_state.messages)) # .invoke(sysp + str(prompt))
+            resp = chain_multimodal_worag.invoke(sysp + str(prompt)) # .invoke(sysp + str(st.session_state.messages))
         print(resp)
         st.write(resp)
     st.session_state.messages.append({"role": "assistant", "content": resp})
