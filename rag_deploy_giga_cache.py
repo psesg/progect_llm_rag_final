@@ -196,7 +196,7 @@ def split_image_text_types(docs):
             b64_images.append(doc)
         else:
             texts.append(doc)
-    print (f"\t\tlen(docs) = {len(docs)} len(texts) = {len(texts)} len(b64_images) = {len(b64_images)}\n")
+    print (f"\t\tin len(docs) = {len(docs)} out len(texts) = {len(texts)} out len(b64_images) = {len(b64_images)}\n")
     # for d in texts:
     #     print(f'\t\trd = [{d}]')
 
