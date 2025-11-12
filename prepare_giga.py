@@ -47,7 +47,7 @@ def dhms_from_seconds(seconds):
 ########################################################################################################################
 # read and append to list run parameters
 params = []
-allowed_params = ['-get_raw', '-cat_txt_tbl_img', '-sum_txt_tbl', '-sum_img', '-make_vec_doc', '-get_stat']
+allowed_params = ['-get_raw', '-cat_txt_tbl_img', '-sum_txt_tbl', '-sum_img', '-make_vec_doc', '-doc_opt', '-get_stat']
 strStart = sys.argv[0]
 if len(sys.argv) > 1:
     for count, value in enumerate(sys.argv):
@@ -654,24 +654,32 @@ if  len(params) == 0 or '-sum_img' in params:
           f"{el_d} days {el_h} hours {el_m} min {el_s} sec")
 
 ########################################################################################################################
-if  len(params) == 0 or '-make_vec_doc' in params:
+if  len(params) == 0 or '-make_vec_doc' in params or ('-make_vec_doc' in params and '-doc_opt' in params):
     start_datetime = datetime.datetime.now()
     print(f"{start_datetime.strftime('%Y.%m.%d %H:%M:%S')} ->: begin of saving vector and document data to disk")
 
+    if '-doc_opt' in params:
+        var_txt = texts_pkl
+    else:
+        var_txt = txts_pkl
     # txts элементы
-    if not os.path.exists(txts_pkl):
-        print(f"\t\tfile not exists:{txts_pkl}")
+    if not os.path.exists(var_txt):
+        print(f"\t\tfile not exists:{var_txt}")
         exit(2)
     else:
-        with open(txts_pkl, 'rb') as inp:
+        with open(var_txt, 'rb') as inp:
             txts = pickle.load(inp)
 
+    if '-doc_opt' in params:
+        var_tbl = tables_pkl
+    else:
+        var_tbl = tbls_pkl
     # tbls элементы
-    if not os.path.exists(tbls_pkl):
-        print(f"\t\tfile not exists:{tbls_pkl}")
+    if not os.path.exists(var_tbl):
+        print(f"\t\tfile not exists:{var_tbl}")
         exit(2)
     else:
-        with open(tbls_pkl, 'rb') as inp:
+        with open(var_tbl, 'rb') as inp:
             tbls = pickle.load(inp)
 
     # text_summaries элементы
@@ -690,12 +698,16 @@ if  len(params) == 0 or '-make_vec_doc' in params:
         with open(table_summaries_pkl, 'rb') as inp:
             table_summaries = pickle.load(inp)
 
+    if '-doc_opt' in params:
+        var_img = images_pkl
+    else:
+        var_img = imgs_pkl
     # imgs элементы
-    if not os.path.exists(imgs_pkl):
-        print(f"\t\tfile not exists:{imgs_pkl}")
+    if not os.path.exists(var_img):
+        print(f"\t\tfile not exists:{var_img}")
         exit(2)
     else:
-        with open(imgs_pkl, 'rb') as inp:
+        with open(var_img, 'rb') as inp:
             imgs = pickle.load(inp)
 
     # image_summaries элементы
@@ -736,7 +748,14 @@ if  len(params) == 0 or '-make_vec_doc' in params:
     print(f"\t\t\tcreate a list of docs with IDs...")
     all_id_docs = []
     for i, item in enumerate(all_docs):
-        all_id_docs.append((all_indexes[i], item.encode(),))
+        if '-doc_opt' in params:
+            new_item = {}
+            for key, value in item.items():
+                if isinstance(value, str):
+                    new_item.update({key: value.encode()})
+            all_id_docs.append((all_indexes[i], new_item,))
+        else:
+            all_id_docs.append((all_indexes[i], item.encode(),))
 
     with open(all_id_docs_pkl, 'wb') as outp:
         pickle.dump(all_id_docs, outp, pickle.HIGHEST_PROTOCOL)
