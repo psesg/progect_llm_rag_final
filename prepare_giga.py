@@ -134,6 +134,9 @@ print(f"\t\t\t{img_base64_list_pkl}")
 image_summaries_pkl = os.path.join(path_to_pkl,"image_summaries_pkl.pkl")
 print(f"\t\t\t{image_summaries_pkl}")
 
+image_desc_base64_pkl = os.path.join(path_to_pkl,"image_desc_base64_pkl.pkl")
+print(f"\t\t\t{image_desc_base64_pkl}")
+
 imgs_pkl = os.path.join(path_to_pkl,"imgs_pkl.pkl")
 print(f"\t\t\t{imgs_pkl}")
 
@@ -444,7 +447,7 @@ def generate_img_summaries(images):
     img_base64_list = []  # Список для хранения закодированных изображений
     image_summaries = []  # Список для хранения суммаризаций изображений с метаданныим (dictionary)
     imgs = []             # Список для хранения суммаризаций изображений без метаданных
-
+    image_desc_base64 = []  # Список для хранения суммаризаций изображений с метаданныим (dictionary) и изображений base64
     # Запрос для модели GPT
     prompt = """Ты — специалист по созданию коротких и содержательных описаний по изображениям.
         Выполняй основные требования к создаваемому описанию по изображению/картинке:
@@ -471,12 +474,22 @@ def generate_img_summaries(images):
                 image.update({'image_content': description})
                 image_summaries.append(image)
                 imgs.append(description)
+                el_image_desc_base64 = {}
+                for key, value in image.items():
+                    el_image_desc_base64.update({key: value})
+                el_image_desc_base64.update({'image_description': description})
+                el_image_desc_base64.update({'image_base64': base64_image})
+                image_desc_base64.append(el_image_desc_base64)
+                # print(el_image_desc_base64)
                 n_file += 1
             else:
                 logger.warning(f'img_path not exist: {img_path}')
-    logger.debug(f'length images = {len(images)}\n\t\timages: <{images}>\n\t\timage summaries: [{image_summaries}]')
+    logger.debug(f'length images = {len(images)}'
+                 f'\n\t\timages: <{images}>'
+                 f'\n\t\timage summaries: [{image_summaries}]'
+                 f'\n\t\tlength image_desc_base64: [{len(image_desc_base64)}]')
 
-    return img_base64_list, image_summaries, imgs  # Возвращаем результаты
+    return img_base64_list, image_summaries, imgs, image_desc_base64  # Возвращаем результаты
 
 # Функция создания списков уникальных идентификаторов и документов
 def add_document(doc_summaries):
@@ -635,7 +648,7 @@ if  len(params) == 0 or '-sum_img' in params:
         with open(images_pkl, 'rb') as inp:
             images = pickle.load(inp)
     # Вызываем функцию для генерации суммаризаций изображений
-    img_base64_list, image_summaries, imgs = generate_img_summaries(images)
+    img_base64_list, image_summaries, imgs, image_desc_base64 = generate_img_summaries(images)
 
     # сохраняем результаты для дальнейшего использования
     with open(img_base64_list_pkl, 'wb') as outp:
@@ -644,14 +657,17 @@ if  len(params) == 0 or '-sum_img' in params:
         pickle.dump(image_summaries, outp, pickle.HIGHEST_PROTOCOL)
     with open(imgs_pkl, 'wb') as outp:
         pickle.dump(imgs, outp, pickle.HIGHEST_PROTOCOL)
-
+    with open(image_desc_base64_pkl, 'wb') as outp:
+        pickle.dump(image_desc_base64, outp, pickle.HIGHEST_PROTOCOL)
     print(f'\t\tsummarized elements - image+meta: {len(image_summaries)} image w/o meta: {len(imgs)}'
-          f' created img_base64_list: {len(img_base64_list)} ')
+          f' img_base64_list: {len(img_base64_list)} image_desc_base64: {len(image_desc_base64)}')
     datetime_finish = datetime.datetime.now()
     delta_sec = date_diff_in_seconds(datetime_finish, start_datetime)
     el_d, el_h, el_m, el_s = dhms_from_seconds(delta_sec)
     print(f"{datetime_finish.strftime('%Y.%m.%d %H:%M:%S')} ->: end summarization image elements in "
           f"{el_d} days {el_h} hours {el_m} min {el_s} sec")
+    print(image_desc_base64[0])
+    print(image_desc_base64[1])
 
 ########################################################################################################################
 if  len(params) == 0 or '-make_vec_doc' in params or ('-make_vec_doc' in params and '-doc_opt' in params):
@@ -871,6 +887,16 @@ if  len(params) == 0 or '-get_stat' in params:
         with open(imgs_pkl, 'rb') as inp:
             imgs = pickle.load(inp)
 
+    # desc image base64 элементы w/o meta
+    if not os.path.exists(image_desc_base64_pkl):
+        print(f"\t\tfile not exists:{image_desc_base64_pkl}")
+        exit(2)
+    else:
+        print(f"\t\tfile - ok: {image_desc_base64_pkl}")
+        with open(image_desc_base64_pkl, 'rb') as inp:
+            image_desc_base64 = pickle.load(inp)
+
+
     # печать сэмплов данных
     n_samples = 10
     print(f"\tprinting data samples [:{n_samples}]")
@@ -919,6 +945,11 @@ if  len(params) == 0 or '-get_stat' in params:
             print(f"\t\tlen(imgs)={len(imgs)}")
             print("\t\t\t", end="")
             print(imgs[:n_samples])
+
+    if len(image_desc_base64) > 0:
+            print(f"\t\tlen(image_desc_base64)={len(image_desc_base64)}")
+            print("\t\t\t", end="")
+            print(image_desc_base64[:1])
 
     if len(img_base64_list) > 0:
             print(f"\t\tlen(img_base64_list)={len(img_base64_list)}")
