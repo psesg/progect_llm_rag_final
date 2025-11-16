@@ -188,7 +188,9 @@ def split_image_text_types(docs):
     texts = []
 
     for dc in docs:
-        doc = dc.decode()
+        #doc = dc.decode()
+        doc = pickle.loads(dc)
+        print(f"\t\tdoc = [{doc}]",flush=True)
         if isinstance(doc, Document):
             doc = doc.page_content
         if looks_like_base64(doc) and is_image_data(doc):
@@ -420,18 +422,18 @@ chain_multimodal_worag = create_chain_multimodal_worag()
 #          " источников энергии и каковы основные тезисы реферата?")
 # query = "Что говорится в отчете Сбера о кредитах по амортизированной и справедливой стоимости на конец 2022 и 2023 года?"
 
-# query = ("О чем страница отчета Сбера, где изображена женщина-велосипедист в защитном шлеме и очках на фоне размытого пейзажа?"
-#          " Перечисли основные темы. Существуют ли на странице оформительские ошибки и если есть, то опиши их суть.")
-# print(f"\t\tquery=[{query}]")
-#
-# docs = retriever_multi_vector_img.get_relevant_documents(query, limit=6)
-# print(f'\t\tget_relevant_documents len(docs) = {len(docs)})')
-# # for d in docs:
-# #     print(f'\t\trd = [{d.decode()}]')
-#
-# resp = chain_multimodal_rag.invoke(query)
-# print(f'\n\t\tLLM resp = [{resp}]')
-# exit(0)
+query = ("О чем страница отчета Сбера, где изображена женщина-велосипедист в защитном шлеме и очках на фоне размытого пейзажа?"
+         " Перечисли основные темы. Существуют ли на странице оформительские ошибки и если есть, то опиши их суть.")
+print(f"\t\tquery=[{query}]")
+
+docs = retriever_multi_vector_img.get_relevant_documents(query, limit=6)
+print(f'\t\tget_relevant_documents len(docs) = {len(docs)})')
+# for d in docs:
+#     print(f'\t\trd = [{d.decode()}]')
+
+resp = chain_multimodal_rag.invoke(query)
+print(f'\n\t\tLLM resp = [{resp}]')
+exit(0)
 
 ########################################################################################################################
 # начало отрисовки WEB-морды работа с LLM с RAG

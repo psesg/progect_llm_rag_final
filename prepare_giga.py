@@ -751,9 +751,10 @@ if  len(params) == 0 or '-make_vec_doc' in params or ('-make_vec_doc' in params 
         if '-doc_opt' in params:
             new_item = {}
             for key, value in item.items():
-                if isinstance(value, str):
-                    new_item.update({key: value.encode()})
-            all_id_docs.append((all_indexes[i], new_item,))
+                new_item.update({key: value})
+                # if isinstance(value, str):
+                #     new_item.update({key: value.encode()})
+            all_id_docs.append((all_indexes[i], pickle.dumps(new_item),))
         else:
             all_id_docs.append((all_indexes[i], item.encode(),))
 
