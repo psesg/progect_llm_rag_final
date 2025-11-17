@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
-from accelerate.commands.config.config import description
+# from accelerate.commands.config.config import description
 from unstructured.documents.elements import NarrativeText, Table, Image
 from unstructured.partition.pdf import partition_pdf
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.documents import Document
@@ -19,6 +18,7 @@ import logging
 from giga_util import get_giga_credentials, get_giga_url_access_mode, get_giga_token_access
 import datetime
 import uuid
+from langchain_community.callbacks import get_openai_callback
 
 # set logging level - for logging to file add: filename='myapp.log',
 logger = logging.getLogger(__name__)
@@ -47,7 +47,7 @@ def dhms_from_seconds(seconds):
 ########################################################################################################################
 # read and append to list run parameters
 params = []
-allowed_params = ['-get_raw', '-cat_txt_tbl_img', '-sum_txt_tbl', '-sum_img', '-make_vec_doc', '-doc_opt', '-get_stat']
+allowed_params = ['-get_raw', '-cat_txt_tbl_img', '-sum_txt_tbl', '-sum_img', '-make_vec_doc', '-get_stat']
 strStart = sys.argv[0]
 if len(sys.argv) > 1:
     for count, value in enumerate(sys.argv):
@@ -68,7 +68,7 @@ gl_start_datetime = datetime.datetime.now()
 print(f"{gl_start_datetime.strftime('%Y.%m.%d %H:%M:%S')} ->: begin preprocessing input PDF file: {report_path}")
 
 print(f"getting connection parameters to GigaChat")
-giga = True
+
 model_giga = "GigaChat-2-Max" # "GigaChat-2-Pro"
 # GigaChat-2-Max
 # GigaChat-Max
@@ -77,35 +77,30 @@ model_giga = "GigaChat-2-Max" # "GigaChat-2-Pro"
 # GigaChat-2-Reasoning
 # GigaChat-2
 # GigaChat
-if giga:
-    max_concurrency_workers = 1
-    credentials = get_giga_credentials()
-    if credentials == '':
-        logger.critical('OS variable: GIGACHAT_CREDENTIALS not set')
-        exit(1)
-    # get url_oauth and access_mode
-    url_oauth, access_mode = get_giga_url_access_mode()
-    rc, tk = get_giga_token_access(url_oauth, credentials)
-    if rc:
-        payload = {}
-        headers = {
-            'Accept': 'application/json',
-            'Authorization': f'Bearer {tk}'
-        }
-    else:
-        logger.critical('Can''t get authorization token to GigaChat')
-        exit(1)
+
+credentials = get_giga_credentials()
+if credentials == '':
+    logger.critical('OS variable: GIGACHAT_CREDENTIALS not set')
+    exit(1)
+# get url_oauth and access_mode
+url_oauth, access_mode = get_giga_url_access_mode()
+rc, tk = get_giga_token_access(url_oauth, credentials)
+if rc:
+    payload = {}
+    headers = {
+        'Accept': 'application/json',
+        'Authorization': f'Bearer {tk}'
+    }
 else:
-    max_concurrency_workers = 5
+    logger.critical('Can''t get authorization token to GigaChat')
+    exit(1)
 
 # пути к файлам
 print(f"setting up output file paths")
-if giga:
-    image_block_output_dir = "./giga_extracted_images"
-    path_to_pkl = "./giga_pickles"
-else:
-    image_block_output_dir = "./extracted_images"
-    path_to_pkl = "./pickles"
+
+image_block_output_dir = "./giga_extracted_images"
+path_to_pkl = "./giga_pickles"
+
 print(f"\t\tpath to the extracted image files: {image_block_output_dir}")
 print(f"\t\toutput PKL files")
 raw_pdf_elements_pkl = os.path.join(path_to_pkl,"raw_pdf_elements_pkl.pkl")
@@ -114,14 +109,8 @@ print(f"\t\t\t{raw_pdf_elements_pkl}")
 texts_pkl = os.path.join(path_to_pkl,"texts_pkl.pkl")
 print(f"\t\t\t{texts_pkl}")
 
-txts_pkl = os.path.join(path_to_pkl,"txts_pkl.pkl")
-print(f"\t\t\t{txts_pkl}")
-
 tables_pkl = os.path.join(path_to_pkl,"tables_pkl.pkl")
 print(f"\t\t\t{tables_pkl}")
-
-tbls_pkl = os.path.join(path_to_pkl,"tbls_pkl.pkl")
-print(f"\t\t\t{tbls_pkl}")
 
 images_pkl = os.path.join(path_to_pkl,"images_pkl.pkl")
 print(f"\t\t\t{images_pkl}")
@@ -132,17 +121,11 @@ print(f"\t\t\t{text_summaries_pkl}")
 table_summaries_pkl = os.path.join(path_to_pkl,"table_summaries_pkl.pkl")
 print(f"\t\t\t{table_summaries_pkl}")
 
-img_base64_list_pkl = os.path.join(path_to_pkl,"img_base64_list.pkl")
-print(f"\t\t\t{img_base64_list_pkl}")
-
 image_summaries_pkl = os.path.join(path_to_pkl,"image_summaries_pkl.pkl")
 print(f"\t\t\t{image_summaries_pkl}")
 
 image_desc_base64_pkl = os.path.join(path_to_pkl,"image_desc_base64_pkl.pkl")
 print(f"\t\t\t{image_desc_base64_pkl}")
-
-imgs_pkl = os.path.join(path_to_pkl,"imgs_pkl.pkl")
-print(f"\t\t\t{imgs_pkl}")
 
 all_vector_docs_pkl = os.path.join(path_to_pkl,"all_vector_docs_pkl.pkl")
 print(f"\t\t\t{all_vector_docs_pkl}")
@@ -193,21 +176,19 @@ def categorize_elements(raw_pdf_elements, source_document):
                       представляющих извлеченные из PDF элементы.
 
     Возвращает:
-    Два списка: texts (текстовые элементы) и tables (таблицы).
+    Три списка словарей: text_data (текстовые элементы + meta), table_data (таблицы + meta) и image_data (only meta).
     """
-    tables = []  # Список для хранения элементов типа "таблица"
-    texts = []   # Список для хранения текстовых элементов
+
     text_data = []  # Список для хранения текстовых элементов с метаданными
     table_data = [] # Список для хранения элементов типа "таблица" с метаданными
     image_data = []  # Список для хранения элементов типа "image" с метаданными
-    # '- '
+
     # Инициализация словаря для подсчета параграфов на каждой странице
     paragraph_counters = {}
     for element in raw_pdf_elements:
         # Проверка типа элемента. Если элемент является таблицей, добавляем его в список таблиц
         # if "unstructured.documents.elements.Table" in str(type(element)):
         if isinstance(element, Table):
-            # tables.append(str(element))
             # Извлечение id элемента
             id_element = str(element.id)
             # Извлечение номера страницы из метаданных элемента
@@ -215,7 +196,6 @@ def categorize_elements(raw_pdf_elements, source_document):
 
             # Преобразование таблицы в строковое представление
             table_content = str(element)
-            tables.append(str(element))
 
             # Добавление метаданных таблицы в список table_data
             table_data.append({
@@ -228,7 +208,6 @@ def categorize_elements(raw_pdf_elements, source_document):
         # Если элемент является композитным текстовым элементом, добавляем его в список текстов
         # if "unstructured.documents.elements.CompositeElement" in str(type(element)):
         if isinstance(element, NarrativeText):
-            # texts.append(str(element))
             id_element = str(element.id)
             # Извлечение номера страницы из метаданных элемента
             page_number = element.metadata.page_number
@@ -244,7 +223,6 @@ def categorize_elements(raw_pdf_elements, source_document):
 
             # Извлечение текста из элемента
             text_content = str(element.text)
-            texts.append(str(element.text))
 
             # Добавление текста и его метаданных в список text_data
             text_data.append({
@@ -272,54 +250,45 @@ def categorize_elements(raw_pdf_elements, source_document):
                 "image_path": image_path             # Путь к изображению (если доступен)
             })
 
-    return text_data, table_data, image_data, texts, tables # Возвращаем списки с текстами, таблицами и изображениями
+    return text_data, table_data, image_data # Возвращаем списки с текстами, таблицами и изображениями
 
 # Функция для суммаризации текста и таблиц
-def generate_text_summaries(texts, tables, summarize_texts=False):
+def generate_text_summaries(texts, tables):
     """
     Функция для создания суммаризации текста и таблиц с использованием модели GPT.
 
     Аргументы:
-    texts: Список строк (тексты), которые нужно суммировать.
-    tables: Список строк (таблицы), которые нужно суммировать.
-    summarize_texts: Булев флаг, указывающий, нужно ли суммировать текстовые элементы.
+    texts: Список словарей (тексты), которые нужно суммировать.
+    tables: Список словарей (таблицы), которые нужно суммировать.
 
     Возвращает:
-    Два списка: text_summaries (суммаризации текстов) и table_summaries (суммаризации таблиц).
+    Два списка словарей: text_summaries (суммаризации текстов) и table_summaries (суммаризации таблиц).
     """
+    sum_prompt_tokens = 0
+    sum_completion_tokens = 0
 
     # Шаблон для запроса к модели. Задача ассистента - создать оптимизированное описание для поиска.
     prompt_text = [
         ("system", "Ты — специалист по саммаризации - созданию кратких и содержательных резюме текста."),
-        ("human", """Создай краткое, логичное и ясное по смыслу резюме из текста, следующего за ключевым словом [КОНТЕКСТ].
-
-            Выполняй основные требования к резюме:
-            - кратко выделять основные идеи, ключевые мысли;
-            - избегать вывода избыточной информации и малоизвестной терминологии, жаргонных слов и аббревиатур;
-            - смысл резюме должен быть понятен без исходного текста;
-            - не начинай вывод резюме со слова [резюме]
-
-            [КОНТЕКСТ]: {element}
-        """),
+        ("human", """Создай краткое, логичное и ясное по смыслу резюме из текста, следующего за ключевым словом"
+                  " [КОНТЕКСТ].\nВыполняй основные требования к резюме:\n- кратко выделять основные идеи,"
+                  " ключевые мысли;\n- избегать вывода избыточной информации и малоизвестной терминологии,"
+                  " жаргонных слов и аббревиатур;\n- смысл резюме должен быть понятен без исходного текста;"
+                  "\n- не начинай вывод резюме со слова [резюме] [КОНТЕКСТ]: {element}"""),
     ]
-    #- вывод резюме всегда предваряй ключевым словом [ВЫВОД].
-    #             [ВЫВОД]:
     # Создаем шаблон запроса на основе строки с шаблоном
     # prompt = ChatPromptTemplate.from_template(prompt_text)
     prompt = ChatPromptTemplate(prompt_text)
     # Создаем модель для генерации суммаризаций. Устанавливаем температуру 0 для детерминированных ответов.
-    if giga:
-        # Авторизация в сервисе GigaChat
-        model = GigaChat(model=model_giga,
-                        credentials=credentials,
-                        verify_ssl_certs=False,
-                        scope="GIGACHAT_API_CORP",
-                        auth_url=url_oauth,
-                        temperature=0,
-                        profanity_check=False)
-    else:
-        model = ChatOpenAI(temperature=0, model="gpt-4o") # OpenAI API ключ в os.environ["OPENAI_API_KEY"]
 
+    # Авторизация в сервисе GigaChat
+    model = GigaChat(model=model_giga,
+                    credentials=credentials,
+                    verify_ssl_certs=False,
+                    scope="GIGACHAT_API_CORP",
+                    auth_url=url_oauth,
+                    temperature=0,
+                    profanity_check=False)
 
     # Определяем цепочку обработки запросов: сначала шаблон запроса, затем модель, затем парсер выходных данных
     summarize_chain = {"element": lambda x: x} | prompt | model | StrOutputParser()
@@ -328,34 +297,67 @@ def generate_text_summaries(texts, tables, summarize_texts=False):
     table_summaries = []  # Список для хранения суммаризаций таблиц
 
     # Если есть текстовые элементы и требуется их суммирование
-    if texts and summarize_texts:
+    if texts:
         # Выполняем суммирование текстов
-        #text_summaries = summarize_chain.batch(texts, config={"max_concurrency":max_concurrency_workers })
         n_files = len(texts)
         n_file = 1
         for txt in texts:
             print(f'\t\tsummarization text element {n_file} from {n_files}')
-            txt.update({'text': summarize_chain.invoke(txt['text'])})
-            text_summaries.append(txt)
+            for attemption in range(try_count):
+                try:
+                    attemption += 1
+                    with get_openai_callback() as cb:
+                        sum_text = summarize_chain.invoke(txt['text'])
+                        txt.update({'text': sum_text})
+                        text_summaries.append(txt)
+                        sum_prompt_tokens += cb.prompt_tokens
+                        sum_completion_tokens += cb.completion_tokens
+                except Exception as e:
+                    print(f'\t\t\terror summarization text: {e}')
+                    print(f'\t\t\twait {delay_retry} sec before retry # {attemption + 1}...')
+                    if attemption >= try_count:
+                        print(f'\t\t\texceed limit {try_count} attemptions to summarization text')
+                        print(f'\t\t\twill emergency exit...')
+                        exit(99)
+                    time.sleep(delay_retry)
+                    pass
+                else:
+                    break
             n_file += 1
-    elif texts:
-        # Если суммирование не требуется, просто передаем исходные тексты
-        text_summaries = texts
     logger.debug(f'length texts = {len(texts)}\n\t\ttexts: <{texts}>\n\t\ttexts summaries: [{text_summaries}]')
+
     # Если есть таблицы, выполняем их суммирование
     if tables:
         # Выполняем суммирование таблиц
-        # table_summaries = summarize_chain.batch(tables, config={"max_concurrency":max_concurrency_workers })
         n_files = len(tables)
         n_file = 1
         for txt in tables:
             print(f'\t\tsummarization table element {n_file} from {n_files}')
-            txt.update({'table_content': summarize_chain.invoke(txt['table_content'])})
-            table_summaries.append(txt)
+            for attemption in range(try_count):
+                try:
+                    attemption += 1
+                    with get_openai_callback() as cb:
+                        sum_table = summarize_chain.invoke(txt['table_content'])
+                        txt.update({'table_content': sum_table})
+                        table_summaries.append(txt)
+                        sum_prompt_tokens += cb.prompt_tokens
+                        sum_completion_tokens += cb.completion_tokens
+                except Exception as e:
+                    print(f'\t\t\terror table element: {e}')
+                    print(f'\t\t\twait {delay_retry} sec before retry # {attemption + 1}...')
+                    if attemption >= try_count:
+                        print(f'\t\t\texceed limit {try_count} attemptions to summarization table elements')
+                        print(f'\t\t\twill emergency exit...')
+                        exit(99)
+                    time.sleep(delay_retry)
+                    pass
+                else:
+                    break
             n_file += 1
     logger.debug(f'length tables = {len(tables)}\n\t\ttables: <{tables}>\n\t\ttables summaries: [{table_summaries}]')
 
-    return text_summaries, table_summaries  # Возвращаем результаты суммаризации
+    # Возвращаем результаты суммаризации
+    return text_summaries, table_summaries, sum_prompt_tokens, sum_completion_tokens
 
 # Функция кодирования изображения в формат base64
 def encode_image(image_path):
@@ -373,67 +375,46 @@ def encode_image(image_path):
         return base64.b64encode(image_file.read()).decode("utf-8")
 
 # Функция для суммаризации изображения с использованием модели GPT
-def image_summarize(img_base64, prompt, img_path):
+def image_summarize(prompt, img_path):
     """
     Функция для получения суммаризации изображения с использованием GPT модели.
 
     Аргументы:
-    img_base64: Строка, изображение закодированное в формате base64.
     prompt: Строка, запрос для модели GPT, содержащий инструкцию для суммаризации изображения.
 
     Возвращает:
     Суммаризация изображения, возвращенная моделью GPT.
     """
     # Создаем объект модели GPT с заданными параметрами
-    if giga:
-        # Авторизация в сервисе GigaChat
-        chat = GigaChat(model=model_giga,
-                        credentials=credentials,
-                        verify_ssl_certs=False,
-                        scope="GIGACHAT_API_CORP",
-                        auth_url=url_oauth,
-                        temperature=0)
-        file = chat.upload_file(open(img_path, "rb"),"general")
-        time.sleep(1)  # Sleep for 1 seconds
-        print(f'\t\t\tuploaded file: {file.filename} got id = {file.id_}')
-        # Возвращаем содержимое ответа от модели
-        print(f'\t\t\tdescribing image file: {file.filename}')
-        msg = chat.invoke(
-            [
-                HumanMessage(
-                    content=[
-                        {"type": "text", "text": prompt},  # Запрос для модели
-                    ],
-                    additional_kwargs={"attachments": [file.id_]}
-                )
-            ]
-        )
-        logger.info(f'image file: <{file.filename}> describe: [{msg.content}]')
-        url = f"https://gigachat.devices.sberbank.ru/api/v1/files/{file.id_}/delete"
-        response = requests.request("POST", url, headers=headers, data=payload, verify=False, cert=False)
-        print(f'\t\t\tdelete file {file.filename}: {response.status_code}')
-        logger.info(f'delete file {file.filename}: status_code: {response.status_code}')
-        return msg.content, msg.response_metadata.get('token_usage').get('prompt_tokens'), msg.response_metadata.get('token_usage').get('completion_tokens')
 
-    else:
-        chat = ChatOpenAI(model="gpt-4o", max_tokens=3000) # OpenAI API ключ в os.environ["OPENAI_API_KEY"]
-        # Отправляем запрос к модели GPT
-        msg = chat.invoke(
-            [
-                HumanMessage(
-                    content=[
-                        {"type": "text", "text": prompt},  # Запрос для модели
-                        {
-                            "type": "image_url",  # Тип содержимого - изображение
-                            "image_url": {"url": f"data:image/jpeg;base64,{img_base64}"},
-                            # Изображение в формате base64
-                        },
-                    ]
-                )
-            ]
-        )
-        # Возвращаем содержимое ответа от модели
-        return msg.content
+    # Авторизация в сервисе GigaChat
+    chat = GigaChat(model=model_giga,
+                    credentials=credentials,
+                    verify_ssl_certs=False,
+                    scope="GIGACHAT_API_CORP",
+                    auth_url=url_oauth,
+                    temperature=0)
+    file = chat.upload_file(open(img_path, "rb"),"general")
+    time.sleep(1)  # Sleep for 1 seconds
+    print(f'\t\t\tuploaded file: {file.filename} got id = {file.id_}')
+    # Возвращаем содержимое ответа от модели
+    print(f'\t\t\tdescribing image file: {file.filename}')
+    msg = chat.invoke(
+        [
+            HumanMessage(
+                content=[
+                    {"type": "text", "text": prompt},  # Запрос для модели
+                ],
+                additional_kwargs={"attachments": [file.id_]}
+            )
+        ]
+    )
+    logger.info(f'image file: <{file.filename}> describe: [{msg.content}]')
+    url = f"https://gigachat.devices.sberbank.ru/api/v1/files/{file.id_}/delete"
+    response = requests.request("POST", url, headers=headers, data=payload, verify=False, cert=False)
+    print(f'\t\t\tdelete file {file.filename}: {response.status_code}')
+    logger.info(f'delete file {file.filename}: status_code: {response.status_code}')
+    return msg.content, msg.response_metadata.get('token_usage').get('prompt_tokens'), msg.response_metadata.get('token_usage').get('completion_tokens')
 
 
 def generate_img_summaries(images):
@@ -445,13 +426,12 @@ def generate_img_summaries(images):
 
     Возвращает:
     Два списка:
-    - img_base64_list: Список закодированных изображений в формате base64.
-    - image_summaries: Список суммаризаций для каждого изображения.
+    - image_summaries: Список словарей описаний для каждого изображения с метаданными.
+    - image_desc_base64: Список словарей описаний для каждого изображения с метаданными и данных в base64
     """
-    img_base64_list = []  # Список для хранения закодированных изображений
-    image_summaries = []  # Список для хранения суммаризаций изображений с метаданныим (dictionary)
-    imgs = []             # Список для хранения суммаризаций изображений без метаданных
-    image_desc_base64 = []  # Список для хранения суммаризаций изображений с метаданныим (dictionary) и изображений base64
+
+    image_summaries = []  # Список dictionary для хранения описаний изображений с метаданныим
+    image_desc_base64 = []  # Список dictionary для хранения описаний изображений с метаданныим и изображений base64
     sum_prompt_tokens = 0
     sum_completion_tokens = 0
 
@@ -476,11 +456,10 @@ def generate_img_summaries(images):
             if os.path.exists(img_path):
                 print(f'\t\tsummarization image element {n_file} from {n_files}: {img_path}')
                 base64_image = encode_image(img_path)  # Кодируем изображение в base64
-                img_base64_list.append(base64_image)  # Добавляем закодированное изображение в список
                 for attemption in range(try_count):
                     try:
                         attemption += 1
-                        description, prompt_tokens, completion_tokens = image_summarize(base64_image, prompt, img_path)
+                        description, prompt_tokens, completion_tokens = image_summarize(prompt, img_path)
                     except Exception as e:
                         print(f'\t\t\terror image_summarize(): {e}')
                         print(f'\t\t\twait {delay_retry} sec before retry # {attemption + 1}...')
@@ -497,12 +476,11 @@ def generate_img_summaries(images):
 
                 image.update({'image_content': description})
                 image_summaries.append(image)
-                imgs.append(description)
                 el_image_desc_base64 = {}
                 for key, value in image.items():
                     el_image_desc_base64.update({key: value})
                 # el_image_desc_base64.update({'image_description': description})
-                el_image_desc_base64.update({'image_base64': base64_image})
+                el_image_desc_base64.update({'image_base64': base64_image}) # Добавляем закодированное изображение
                 image_desc_base64.append(el_image_desc_base64)
                 # print(el_image_desc_base64)
                 n_file += 1
@@ -513,7 +491,7 @@ def generate_img_summaries(images):
                  f'\n\t\timage summaries: [{image_summaries}]'
                  f'\n\t\tlength image_desc_base64: [{len(image_desc_base64)}]')
 
-    return img_base64_list, image_summaries, imgs, image_desc_base64, sum_prompt_tokens, sum_completion_tokens  # Возвращаем результаты
+    return image_summaries, image_desc_base64, sum_prompt_tokens, sum_completion_tokens  # Возвращаем результаты
 
 # Функция создания списков уникальных идентификаторов и документов
 def add_document(doc_summaries):
@@ -595,26 +573,21 @@ if  len(params) == 0 or '-cat_txt_tbl_img' in params:
         print(f"\t\tfile not exists:{raw_pdf_elements_pkl}")
         exit(2)
     else:
-        # Категоризируем извлеченные элементы на текстовые и табличные с помощью функции categorize_elements
+        # Категоризируем извлеченные элементы на текстовые и табличные
         with open(raw_pdf_elements_pkl, 'rb') as inp:
             raw_pdf_elements = pickle.load(inp)
-        texts, tables, images, txts, tbls = categorize_elements(raw_pdf_elements, report_path)
+        texts, tables, images = categorize_elements(raw_pdf_elements, report_path)
 
         # сохраняем результаты для дальнейшего использования
         with open(texts_pkl, 'wb') as outp:
             pickle.dump(texts, outp, pickle.HIGHEST_PROTOCOL)
 
-        with open(txts_pkl, 'wb') as outp:
-            pickle.dump(txts, outp, pickle.HIGHEST_PROTOCOL)
-
         with open(tables_pkl, 'wb') as outp:
             pickle.dump(tables, outp, pickle.HIGHEST_PROTOCOL)
 
-        with open(tbls_pkl, 'wb') as outp:
-            pickle.dump(tbls, outp, pickle.HIGHEST_PROTOCOL)
-
         with open(images_pkl, 'wb') as outp:
             pickle.dump(images, outp, pickle.HIGHEST_PROTOCOL)
+
         print(f'\t\tcategorized elements - text: {len(texts)} table: {len(tables)} image: {len(images)}')
     datetime_finish = datetime.datetime.now()
     delta_sec = date_diff_in_seconds(datetime_finish, start_datetime)
@@ -645,14 +618,16 @@ if  len(params) == 0 or '-sum_txt_tbl' in params:
         with open(tables_pkl, 'rb') as inp:
             tables = pickle.load(inp)
 
-    text_summaries, table_summaries = generate_text_summaries(texts, tables, summarize_texts=True)
+    text_summaries, table_summaries, in_tokens, out_tokens = generate_text_summaries(texts, tables)
     # сохраняем результаты для дальнейшего использования
     with open(text_summaries_pkl, 'wb') as outp:
         pickle.dump(text_summaries, outp, pickle.HIGHEST_PROTOCOL)
 
     with open(table_summaries_pkl, 'wb') as outp:
         pickle.dump(table_summaries, outp, pickle.HIGHEST_PROTOCOL)
-    print(f'\t\tsummarized elements - text: {len(text_summaries)} table: {len(table_summaries)}')
+
+    print(f'\t\ttext_summaries: {len(text_summaries)} table_summaries: {len(table_summaries)}')
+    print(f'\t\ttokens used: total = {in_tokens + out_tokens} input = {in_tokens} output = {out_tokens}')
     datetime_finish = datetime.datetime.now()
     delta_sec = date_diff_in_seconds(datetime_finish, start_datetime)
     el_d, el_h, el_m, el_s = dhms_from_seconds(delta_sec)
@@ -672,20 +647,17 @@ if  len(params) == 0 or '-sum_img' in params:
         with open(images_pkl, 'rb') as inp:
             images = pickle.load(inp)
     # Вызываем функцию для генерации суммаризаций изображений
-    img_base64_list, image_summaries, imgs, image_desc_base64, in_tokens, out_tokens = generate_img_summaries(images)
+    image_summaries, image_desc_base64, in_tokens, out_tokens = generate_img_summaries(images)
 
     # сохраняем результаты для дальнейшего использования
-    with open(img_base64_list_pkl, 'wb') as outp:
-        pickle.dump(img_base64_list, outp, pickle.HIGHEST_PROTOCOL)
+
     with open(image_summaries_pkl, 'wb') as outp:
         pickle.dump(image_summaries, outp, pickle.HIGHEST_PROTOCOL)
-    with open(imgs_pkl, 'wb') as outp:
-        pickle.dump(imgs, outp, pickle.HIGHEST_PROTOCOL)
+
     with open(image_desc_base64_pkl, 'wb') as outp:
         pickle.dump(image_desc_base64, outp, pickle.HIGHEST_PROTOCOL)
 
-    print(f'\t\tsummarized elements - image+meta: {len(image_summaries)} image w/o meta: {len(imgs)}'
-          f' img_base64_list: {len(img_base64_list)} image_desc_base64: {len(image_desc_base64)}')
+    print(f'\t\timage_summaries: {len(image_summaries)} image_desc_base64: {len(image_desc_base64)}')
     print(f'\t\ttokens used: total = {in_tokens + out_tokens} input = {in_tokens} output = {out_tokens}')
     datetime_finish = datetime.datetime.now()
     delta_sec = date_diff_in_seconds(datetime_finish, start_datetime)
@@ -695,32 +667,24 @@ if  len(params) == 0 or '-sum_img' in params:
     # print(image_desc_base64[0])
 
 ########################################################################################################################
-if  len(params) == 0 or '-make_vec_doc' in params or ('-make_vec_doc' in params and '-doc_opt' in params):
+if  len(params) == 0 or '-make_vec_doc' in params:
     start_datetime = datetime.datetime.now()
     print(f"{start_datetime.strftime('%Y.%m.%d %H:%M:%S')} ->: begin of saving vector and document data to disk")
 
-    if '-doc_opt' in params:
-        var_txt = texts_pkl
-    else:
-        var_txt = txts_pkl
     # txts элементы
-    if not os.path.exists(var_txt):
-        print(f"\t\tfile not exists:{var_txt}")
+    if not os.path.exists(texts_pkl):
+        print(f"\t\tfile not exists:{texts_pkl}")
         exit(2)
     else:
-        with open(var_txt, 'rb') as inp:
+        with open(texts_pkl, 'rb') as inp:
             txts = pickle.load(inp)
 
-    if '-doc_opt' in params:
-        var_tbl = tables_pkl
-    else:
-        var_tbl = tbls_pkl
     # tbls элементы
-    if not os.path.exists(var_tbl):
-        print(f"\t\tfile not exists:{var_tbl}")
+    if not os.path.exists(tables_pkl):
+        print(f"\t\tfile not exists:{tables_pkl}")
         exit(2)
     else:
-        with open(var_tbl, 'rb') as inp:
+        with open(tables_pkl, 'rb') as inp:
             tbls = pickle.load(inp)
 
     # text_summaries элементы
@@ -739,16 +703,12 @@ if  len(params) == 0 or '-make_vec_doc' in params or ('-make_vec_doc' in params 
         with open(table_summaries_pkl, 'rb') as inp:
             table_summaries = pickle.load(inp)
 
-    if '-doc_opt' in params:
-        var_img = images_pkl
-    else:
-        var_img = imgs_pkl
     # imgs элементы
-    if not os.path.exists(var_img):
-        print(f"\t\tfile not exists:{var_img}")
+    if not os.path.exists(images_pkl):
+        print(f"\t\tfile not exists:{images_pkl}")
         exit(2)
     else:
-        with open(var_img, 'rb') as inp:
+        with open(images_pkl, 'rb') as inp:
             imgs = pickle.load(inp)
 
     # image_summaries элементы
@@ -789,15 +749,12 @@ if  len(params) == 0 or '-make_vec_doc' in params or ('-make_vec_doc' in params 
     print(f"\t\t\tcreate a list of docs with IDs...")
     all_id_docs = []
     for i, item in enumerate(all_docs):
-        if '-doc_opt' in params:
-            new_item = {}
-            for key, value in item.items():
-                new_item.update({key: value})
-                # if isinstance(value, str):
-                #     new_item.update({key: value.encode()})
-            all_id_docs.append((all_indexes[i], pickle.dumps(new_item),))
-        else:
-            all_id_docs.append((all_indexes[i], item.encode(),))
+        new_item = {}
+        for key, value in item.items():
+            new_item.update({key: value})
+            # if isinstance(value, str):
+            #     new_item.update({key: value.encode()})
+        all_id_docs.append((all_indexes[i], pickle.dumps(new_item),))
 
     with open(all_id_docs_pkl, 'wb') as outp:
         pickle.dump(all_id_docs, outp, pickle.HIGHEST_PROTOCOL)
@@ -833,14 +790,6 @@ if  len(params) == 0 or '-get_stat' in params:
         with open(texts_pkl, 'rb') as inp:
             texts = pickle.load(inp)
 
-    if not os.path.exists(txts_pkl):
-        print(f"\t\tfile not exists:{txts_pkl}")
-        exit(2)
-    else:
-        print(f"\t\tfile - ok: {txts_pkl}")
-        with open(txts_pkl, 'rb') as inp:
-            txts = pickle.load(inp)
-
     # table элементы
     if not os.path.exists(tables_pkl):
         print(f"\t\tfile not exists:{tables_pkl}")
@@ -849,14 +798,6 @@ if  len(params) == 0 or '-get_stat' in params:
         print(f"\t\tfile - ok: {tables_pkl}")
         with open(tables_pkl, 'rb') as inp:
             tables = pickle.load(inp)
-
-    if not os.path.exists(tbls_pkl):
-        print(f"\t\tfile not exists:{tbls_pkl}")
-        exit(2)
-    else:
-        print(f"\t\tfile - ok: {tbls_pkl}")
-        with open(tbls_pkl, 'rb') as inp:
-            tbls = pickle.load(inp)
 
     # image элементы
     if not os.path.exists(images_pkl):
@@ -885,15 +826,6 @@ if  len(params) == 0 or '-get_stat' in params:
         with open(table_summaries_pkl, 'rb') as inp:
             table_summaries = pickle.load(inp)
 
-    # img_base64_list элементы
-    if not os.path.exists(img_base64_list_pkl):
-        print(f"\t\tfile not exists:{img_base64_list_pkl}")
-        exit(2)
-    else:
-        print(f"\t\tfile - ok: {img_base64_list_pkl}")
-        with open(img_base64_list_pkl, 'rb') as inp:
-            img_base64_list = pickle.load(inp)
-
     # summary image элементы + meta
     if not os.path.exists(image_summaries_pkl):
         print(f"\t\tfile not exists:{image_summaries_pkl}")
@@ -902,15 +834,6 @@ if  len(params) == 0 or '-get_stat' in params:
         print(f"\t\tfile - ok: {image_summaries_pkl}")
         with open(image_summaries_pkl, 'rb') as inp:
             image_summaries = pickle.load(inp)
-
-    # summary image элементы w/o meta
-    if not os.path.exists(imgs_pkl):
-        print(f"\t\tfile not exists:{imgs_pkl}")
-        exit(2)
-    else:
-        print(f"\t\tfile - ok: {imgs_pkl}")
-        with open(imgs_pkl, 'rb') as inp:
-            imgs = pickle.load(inp)
 
     # desc image base64 элементы w/o meta
     if not os.path.exists(image_desc_base64_pkl):
