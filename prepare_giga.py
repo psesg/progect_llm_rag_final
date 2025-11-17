@@ -58,6 +58,10 @@ if len(params) > 0  and not set(params).issubset(allowed_params):
     print(f'Error - got unknown key(s): {list(set(params) - set(allowed_params))}\nExit script!')
     exit(10)
 
+# параметры повторов при неудачном обращении к GigaChat
+delay_retry = 5
+try_count = 5
+
 # debug code on alt_sources_energy.pdf work real on Sber2023.pdf
 report_path = "source_pdf_report/Sber2023.pdf" #Sber2023.pdf alt_sources_energy.pdf
 gl_start_datetime = datetime.datetime.now()
@@ -470,7 +474,22 @@ def generate_img_summaries(images):
                 print(f'\t\tsummarization image element {n_file} from {n_files}: {img_path}')
                 base64_image = encode_image(img_path)  # Кодируем изображение в base64
                 img_base64_list.append(base64_image)  # Добавляем закодированное изображение в список
-                description = image_summarize(base64_image, prompt, img_path)
+                for attemption in range(try_count):
+                    try:
+                        attemption += 1
+                        description = image_summarize(base64_image, prompt, img_path)
+                    except Exception as e:
+                        print(f'\t\t\terror image_summarize(): {e}')
+                        print(f'\t\t\twait {delay_retry} sec before retry...')
+                        if attemption >= try_count:
+                            print(f'\t\t\texceed limit {try_count} attemptions to image_summarize()')
+                            print(f'\t\t\twill emergency exit...')
+                            exit(99)
+                        time.sleep(delay_retry)
+                        pass
+                    else:
+                        break
+
                 image.update({'image_content': description})
                 image_summaries.append(image)
                 imgs.append(description)
