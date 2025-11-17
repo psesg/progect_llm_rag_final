@@ -413,7 +413,7 @@ def image_summarize(img_base64, prompt, img_path):
         response = requests.request("POST", url, headers=headers, data=payload, verify=False, cert=False)
         print(f'\t\t\tdelete file {file.filename}: {response.status_code}')
         logger.info(f'delete file {file.filename}: status_code: {response.status_code}')
-        return msg.content
+        return msg.content, msg.response_metadata.get('token_usage').get('prompt_tokens'), msg.response_metadata.get('token_usage').get('completion_tokens')
 
     else:
         chat = ChatOpenAI(model="gpt-4o", max_tokens=3000) # OpenAI API ключ в os.environ["OPENAI_API_KEY"]
@@ -452,6 +452,9 @@ def generate_img_summaries(images):
     image_summaries = []  # Список для хранения суммаризаций изображений с метаданныим (dictionary)
     imgs = []             # Список для хранения суммаризаций изображений без метаданных
     image_desc_base64 = []  # Список для хранения суммаризаций изображений с метаданныим (dictionary) и изображений base64
+    sum_prompt_tokens = 0
+    sum_completion_tokens = 0
+
     # Запрос для модели GPT
     prompt = """Ты — специалист по созданию коротких и содержательных описаний по изображениям.
         Выполняй основные требования к создаваемому описанию по изображению/картинке:
@@ -477,7 +480,7 @@ def generate_img_summaries(images):
                 for attemption in range(try_count):
                     try:
                         attemption += 1
-                        description = image_summarize(base64_image, prompt, img_path)
+                        description, prompt_tokens, completion_tokens = image_summarize(base64_image, prompt, img_path)
                     except Exception as e:
                         print(f'\t\t\terror image_summarize(): {e}')
                         print(f'\t\t\twait {delay_retry} sec before retry # {attemption + 1}...')
@@ -488,6 +491,8 @@ def generate_img_summaries(images):
                         time.sleep(delay_retry)
                         pass
                     else:
+                        sum_prompt_tokens += prompt_tokens
+                        sum_completion_tokens += completion_tokens
                         break
 
                 image.update({'image_content': description})
@@ -508,7 +513,7 @@ def generate_img_summaries(images):
                  f'\n\t\timage summaries: [{image_summaries}]'
                  f'\n\t\tlength image_desc_base64: [{len(image_desc_base64)}]')
 
-    return img_base64_list, image_summaries, imgs, image_desc_base64  # Возвращаем результаты
+    return img_base64_list, image_summaries, imgs, image_desc_base64, sum_prompt_tokens, sum_completion_tokens  # Возвращаем результаты
 
 # Функция создания списков уникальных идентификаторов и документов
 def add_document(doc_summaries):
@@ -667,7 +672,7 @@ if  len(params) == 0 or '-sum_img' in params:
         with open(images_pkl, 'rb') as inp:
             images = pickle.load(inp)
     # Вызываем функцию для генерации суммаризаций изображений
-    img_base64_list, image_summaries, imgs, image_desc_base64 = generate_img_summaries(images)
+    img_base64_list, image_summaries, imgs, image_desc_base64, in_tokens, out_tokens = generate_img_summaries(images)
 
     # сохраняем результаты для дальнейшего использования
     with open(img_base64_list_pkl, 'wb') as outp:
@@ -678,15 +683,16 @@ if  len(params) == 0 or '-sum_img' in params:
         pickle.dump(imgs, outp, pickle.HIGHEST_PROTOCOL)
     with open(image_desc_base64_pkl, 'wb') as outp:
         pickle.dump(image_desc_base64, outp, pickle.HIGHEST_PROTOCOL)
+
     print(f'\t\tsummarized elements - image+meta: {len(image_summaries)} image w/o meta: {len(imgs)}'
           f' img_base64_list: {len(img_base64_list)} image_desc_base64: {len(image_desc_base64)}')
+    print(f'\t\ttokens used: total = {in_tokens + out_tokens} input = {in_tokens} output = {out_tokens}')
     datetime_finish = datetime.datetime.now()
     delta_sec = date_diff_in_seconds(datetime_finish, start_datetime)
     el_d, el_h, el_m, el_s = dhms_from_seconds(delta_sec)
     print(f"{datetime_finish.strftime('%Y.%m.%d %H:%M:%S')} ->: end summarization image elements in "
           f"{el_d} days {el_h} hours {el_m} min {el_s} sec")
     print(image_desc_base64[0])
-    print(image_desc_base64[1])
 
 ########################################################################################################################
 if  len(params) == 0 or '-make_vec_doc' in params or ('-make_vec_doc' in params and '-doc_opt' in params):
