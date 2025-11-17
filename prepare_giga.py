@@ -302,7 +302,7 @@ def generate_text_summaries(texts, tables):
         n_files = len(texts)
         n_file = 1
         for txt in texts:
-            print(f'\t\tsummarization text element {n_file} from {n_files}')
+            print(f'\r\t\tsummarization text element {n_file} from {n_files}', end='')
             for attemption in range(try_count):
                 try:
                     attemption += 1
@@ -328,11 +328,12 @@ def generate_text_summaries(texts, tables):
 
     # Если есть таблицы, выполняем их суммирование
     if tables:
+        print('\n')
         # Выполняем суммирование таблиц
         n_files = len(tables)
         n_file = 1
         for txt in tables:
-            print(f'\t\tsummarization table element {n_file} from {n_files}')
+            print(f'\r\t\tsummarization table element {n_file} from {n_files}', end='')
             for attemption in range(try_count):
                 try:
                     attemption += 1
@@ -396,9 +397,8 @@ def image_summarize(prompt, img_path):
                     temperature=0)
     file = chat.upload_file(open(img_path, "rb"),"general")
     time.sleep(1)  # Sleep for 1 seconds
-    print(f'\t\t\tuploaded file: {file.filename} got id = {file.id_}')
+    print(f'\r\t\t\tuploaded and describing file: {file.filename} got id = {file.id_}')
     # Возвращаем содержимое ответа от модели
-    print(f'\t\t\tdescribing image file: {file.filename}')
     msg = chat.invoke(
         [
             HumanMessage(
@@ -412,7 +412,7 @@ def image_summarize(prompt, img_path):
     logger.info(f'image file: <{file.filename}> describe: [{msg.content}]')
     url = f"https://gigachat.devices.sberbank.ru/api/v1/files/{file.id_}/delete"
     response = requests.request("POST", url, headers=headers, data=payload, verify=False, cert=False)
-    print(f'\t\t\tdelete file {file.filename}: {response.status_code}')
+    print(f'\r\t\t\tdelete file {file.filename}: {response.status_code}')
     logger.info(f'delete file {file.filename}: status_code: {response.status_code}')
     return msg.content, msg.response_metadata.get('token_usage').get('prompt_tokens'), msg.response_metadata.get('token_usage').get('completion_tokens')
 
@@ -454,17 +454,17 @@ def generate_img_summaries(images):
         for image in images:
             img_path = image.get("image_path")
             if os.path.exists(img_path):
-                print(f'\t\tsummarization image element {n_file} from {n_files}: {img_path}')
+                print(f'\r\t\tsummarization image element {n_file} from {n_files}: {img_path}')
                 base64_image = encode_image(img_path)  # Кодируем изображение в base64
                 for attemption in range(try_count):
                     try:
                         attemption += 1
                         description, prompt_tokens, completion_tokens = image_summarize(prompt, img_path)
                     except Exception as e:
-                        print(f'\t\t\terror image_summarize(): {e}')
+                        print(f'\t\t\terror image summarize: {e}')
                         print(f'\t\t\twait {delay_retry} sec before retry # {attemption + 1}...')
                         if attemption >= try_count:
-                            print(f'\t\t\texceed limit {try_count} attemptions to image_summarize()')
+                            print(f'\t\t\texceed limit {try_count} attemptions to image summarize')
                             print(f'\t\t\twill emergency exit...')
                             exit(99)
                         time.sleep(delay_retry)
