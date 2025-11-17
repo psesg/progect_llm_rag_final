@@ -847,61 +847,55 @@ if  len(params) == 0 or '-get_stat' in params:
 
 
     # печать сэмплов данных
-    n_samples = 10
+    n_samples = 5
     print(f"\tprinting data samples [:{n_samples}]")
 
     if len(texts) > 0:
             print(f"\t\tlen(texts)={len(texts)}")
-            print("\t\t\t", end="")
-            print(texts[:n_samples])
+            for i in range(n_samples):
+                for key, value in texts[i].items():
+                    print(f"\t\t\t{key}: {value}")
 
-    if len(txts) > 0:
-            print(f"\t\tlen(txts)={len(txts)}")
-            print("\t\t\t", end="")
-            print(txts[:n_samples])
 
     if len(text_summaries) > 0:
             print(f"\t\tlen(text_summaries)={len(text_summaries)}")
-            print("\t\t\t", end="")
-            print(text_summaries[:n_samples])
+            for i in range(n_samples):
+                for key, value in text_summaries[i].items():
+                    print(f"\t\t\t{key}: {value}")
 
     if len(tables) > 0:
             print(f"\t\tlen(tables)={len(tables)}")
-            print("\t\t\t", end="")
-            print(tables[:n_samples])
-
-    if len(tbls) > 0:
-            print(f"\t\tlen(tbls)={len(tbls)}")
-            print("\t\t\t", end="")
-            print(tbls[:n_samples])
+            for i in range(n_samples):
+                for key, value in tables[i].items():
+                    print(f"\t\t\t{key}: {value}")
 
     if len(table_summaries) > 0:
             print(f"\t\tlen(table_summaries)={len(table_summaries)}")
-            print("\t\t\t", end="")
-            print(table_summaries[:n_samples])
+            for i in range(n_samples):
+                for key, value in table_summaries[i].items():
+                    print(f"\t\t\t{key}: {value}")
 
     if len(images) > 0:
             print(f"\t\tlen(images)={len(images)}")
-            print("\t\t\t", end="")
-            print(images[:n_samples])
+            for i in range(n_samples):
+                for key, value in images[i].items():
+                    print(f"\t\t\t{key}: {value}")
 
     if len(image_summaries) > 0:
             print(f"\t\tlen(image_summaries)={len(image_summaries)}")
-            print("\t\t\t", end="")
-            print(image_summaries[:n_samples])
-
-    if len(imgs) > 0:
-            print(f"\t\tlen(imgs)={len(imgs)}")
-            print("\t\t\t", end="")
-            print(imgs[:n_samples])
+            for i in range(n_samples):
+                for key, value in image_summaries[i].items():
+                    print(f"\t\t\t{key}: {value}")
 
     if len(image_desc_base64) > 0:
             print(f"\t\tlen(image_desc_base64)={len(image_desc_base64)}")
-            print("\t\t\t", end="")
-            print(image_desc_base64[:1])
+            for i in range(n_samples):
+                for key, value in image_desc_base64[i].items():
+                    if key != 'image_base64':
+                        print(f"\t\t\t{key}: {value}")
+                    else:
+                        print(f"\t\t\t{key}: [..]")
 
-    if len(img_base64_list) > 0:
-            print(f"\t\tlen(img_base64_list)={len(img_base64_list)}")
     datetime_finish = datetime.datetime.now()
     delta_sec = date_diff_in_seconds(datetime_finish, start_datetime)
     el_d, el_h, el_m, el_s = dhms_from_seconds(delta_sec)
