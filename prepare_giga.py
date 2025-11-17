@@ -397,7 +397,8 @@ def image_summarize(prompt, img_path):
                     temperature=0)
     file = chat.upload_file(open(img_path, "rb"),"general")
     time.sleep(1)  # Sleep for 1 seconds
-    print(f'\r\t\t\tuploaded and describing file: {file.filename} got id = {file.id_}')
+    # print(f'\t\t\tuploaded and describing file: {file.filename} got id = {file.id_}')
+    logger.info(f'uploaded and describing file: {file.filename} got id = {file.id_}')
     # Возвращаем содержимое ответа от модели
     msg = chat.invoke(
         [
@@ -412,7 +413,7 @@ def image_summarize(prompt, img_path):
     logger.info(f'image file: <{file.filename}> describe: [{msg.content}]')
     url = f"https://gigachat.devices.sberbank.ru/api/v1/files/{file.id_}/delete"
     response = requests.request("POST", url, headers=headers, data=payload, verify=False, cert=False)
-    print(f'\r\t\t\tdelete file {file.filename}: {response.status_code}')
+    # print(f'\t\t\tdelete file {file.filename}: {response.status_code}')
     logger.info(f'delete file {file.filename}: status_code: {response.status_code}')
     return msg.content, msg.response_metadata.get('token_usage').get('prompt_tokens'), msg.response_metadata.get('token_usage').get('completion_tokens')
 
@@ -454,7 +455,7 @@ def generate_img_summaries(images):
         for image in images:
             img_path = image.get("image_path")
             if os.path.exists(img_path):
-                print(f'\r\t\tsummarization image element {n_file} from {n_files}: {img_path}')
+                print(f'\r\t\tsummarization image element {n_file} from {n_files}: {img_path}', end='')
                 base64_image = encode_image(img_path)  # Кодируем изображение в base64
                 for attemption in range(try_count):
                     try:
