@@ -692,7 +692,7 @@ if  len(params) == 0 or '-sum_img' in params:
     el_d, el_h, el_m, el_s = dhms_from_seconds(delta_sec)
     print(f"{datetime_finish.strftime('%Y.%m.%d %H:%M:%S')} ->: end summarization image elements in "
           f"{el_d} days {el_h} hours {el_m} min {el_s} sec")
-    print(image_desc_base64[0])
+    # print(image_desc_base64[0])
 
 ########################################################################################################################
 if  len(params) == 0 or '-make_vec_doc' in params or ('-make_vec_doc' in params and '-doc_opt' in params):
