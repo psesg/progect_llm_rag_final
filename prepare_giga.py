@@ -480,7 +480,7 @@ def generate_img_summaries(images):
                         description = image_summarize(base64_image, prompt, img_path)
                     except Exception as e:
                         print(f'\t\t\terror image_summarize(): {e}')
-                        print(f'\t\t\twait {delay_retry} sec before retry...')
+                        print(f'\t\t\twait {delay_retry} sec before retry #{attemption + 1}...')
                         if attemption >= try_count:
                             print(f'\t\t\texceed limit {try_count} attemptions to image_summarize()')
                             print(f'\t\t\twill emergency exit...')
