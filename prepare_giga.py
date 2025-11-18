@@ -508,7 +508,7 @@ def generate_img_summaries(images):
     return image_summaries, image_desc_base64, sum_prompt_tokens, sum_completion_tokens  # Возвращаем результаты
 
 # Функция создания списков уникальных идентификаторов и документов
-def add_document(doc_summaries):
+def add_document(doc_summaries, doc_db):
     """
     Функция для добавления документов и метаданных в Document.
 
@@ -529,17 +529,24 @@ def add_document(doc_summaries):
     table_content = 'table_content'
     image_content = 'image_content'
     image_path = 'image_path'
+    image_base64 = 'image_base64'
 
     summary_docs = []
+    db_docs = []
+
     m_d = {}
     for i, s in enumerate(doc_summaries):
+        m_d.update({id_key: doc_ids[i]})
+        m_d.update({'type': 'vector'})
         if text in s:
             p_c = str(s.get('text'))
+            m_d.update({'src': 'txt'})
         if table_content in s:
             p_c = str(s.get('table_content'))
+            m_d.update({'src': 'tbl'})
         if image_content in s:
             p_c = str(s.get('image_content'))
-        m_d.update({id_key: doc_ids[i]})
+            m_d.update({'src': 'img'})
         if source_document in s:
             m_d.update({source_document: str(s.get(source_document))})
         if page_number in s:
@@ -548,11 +555,35 @@ def add_document(doc_summaries):
             m_d.update({paragraph_number: str(s.get(paragraph_number))})
         if image_path in s:
             m_d.update({image_path: str(s.get(image_path))})
-        doc = Document(page_content=p_c, metadata=m_d)
-        summary_docs.append(doc)
+        summary_docs.append(Document(page_content=p_c, metadata=m_d))
+
+    m_t = {}
+    for i, s in enumerate(doc_db):
+        m_t.update({id_key: doc_ids[i]})
+        m_t.update({'type': 'store'})
+        if text in s:
+            p_c = str(s.get('text'))
+            m_t.update({'src': 'txt'})
+        if table_content in s:
+            p_c = str(s.get('table_content'))
+            m_t.update({'src': 'tbl'})
+        if image_content in s:
+            p_c = str(s.get('image_content'))
+            m_t.update({'src': 'img'})
+        if source_document in s:
+            m_t.update({source_document: str(s.get(source_document))})
+        if page_number in s:
+            m_t.update({page_number: str(s.get(page_number))})
+        if paragraph_number in s:
+            m_t.update({paragraph_number: str(s.get(paragraph_number))})
+        if image_path in s:
+            m_t.update({image_path: str(s.get(image_path))})
+        if image_base64 in s:
+            m_t.update({image_base64: str(s.get(image_base64))})
+        db_docs.append(Document(page_content=p_c, metadata=m_t))
 
     # print(f'\t\tsummary_docs = [{summary_docs[:1]}]')
-    return doc_ids, summary_docs
+    return doc_ids, summary_docs, db_docs
 
 ########################################################################################################################
 # начало реальной обработки файла
@@ -718,11 +749,11 @@ if  len(params) == 0 or '-make_vec_doc' in params:
             table_summaries = pickle.load(inp)
 
     # imgs элементы
-    if not os.path.exists(images_pkl):
-        print(f"\t\tfile not exists:{images_pkl}")
+    if not os.path.exists(image_desc_base64_pkl):
+        print(f"\t\tfile not exists:{image_desc_base64_pkl}")
         exit(2)
     else:
-        with open(images_pkl, 'rb') as inp:
+        with open(image_desc_base64_pkl, 'rb') as inp:
             imgs = pickle.load(inp)
 
     # image_summaries элементы
@@ -739,22 +770,22 @@ if  len(params) == 0 or '-make_vec_doc' in params:
     all_docs = []
 
     print(f"\t\t\tadd text_summaries and txts...")
-    id_docs, vector_docs = add_document(text_summaries)
+    id_docs, vector_docs, db_docs = add_document(text_summaries, txts)
     all_indexes.extend(id_docs)
     all_vector_docs.extend(vector_docs)
-    all_docs.extend(txts)
+    all_docs.extend(db_docs)
 
     print(f"\t\t\tadd table_summaries and tbls...")
-    id_docs, vector_docs = add_document(table_summaries)
+    id_docs, vector_docs, db_docs = add_document(table_summaries, tbls)
     all_indexes.extend(id_docs)
     all_vector_docs.extend(vector_docs)
-    all_docs.extend(tbls)
+    all_docs.extend(db_docs)
 
     print(f"\t\t\tadd image_summaries and imgs...")
-    id_docs, vector_docs = add_document(image_summaries)
+    id_docs, vector_docs, db_docs = add_document(image_summaries, imgs)
     all_indexes.extend(id_docs)
     all_vector_docs.extend(vector_docs)
-    all_docs.extend(imgs)
+    all_docs.extend(db_docs)
 
     with open(all_vector_docs_pkl, 'wb') as outp:
         pickle.dump(all_vector_docs, outp, pickle.HIGHEST_PROTOCOL)
@@ -763,12 +794,12 @@ if  len(params) == 0 or '-make_vec_doc' in params:
     print(f"\t\t\tcreate a list of docs with IDs...")
     all_id_docs = []
     for i, item in enumerate(all_docs):
-        new_item = {}
-        for key, value in item.items():
-            new_item.update({key: value})
+        # new_item = {}
+        # for key, value in item.items():
+        #     new_item.update({key: value})
             # if isinstance(value, str):
             #     new_item.update({key: value.encode()})
-        all_id_docs.append((all_indexes[i], pickle.dumps(new_item),))
+        all_id_docs.append((all_indexes[i], pickle.dumps(item),))
 
     with open(all_id_docs_pkl, 'wb') as outp:
         pickle.dump(all_id_docs, outp, pickle.HIGHEST_PROTOCOL)
