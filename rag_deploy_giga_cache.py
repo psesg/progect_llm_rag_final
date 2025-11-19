@@ -109,7 +109,8 @@ def create_new_multi_vector_retriever(vectorstore, all_docs_store):
         docstore=all_docs_store,
         id_key=id_key,
         # search_type="similarity_score_threshold",
-        # search_kwargs={"score_threshold": 0.5}
+        # search_kwargs={"score_threshold": 0.5, # Only return docs with similarity >= 0.5
+        #         "k": 10  # Max number to consider}
         # "similarity"
         search_type="mmr",
         search_kwargs={
@@ -117,12 +118,6 @@ def create_new_multi_vector_retriever(vectorstore, all_docs_store):
             "fetch_k": 10,  # Fetch more candidates
             "lambda_mult": 0.7  # Balance similarity vs diversity
         }
-        # search_type="mmr",
-        # search_kwargs={
-        #     "k": 5,
-        #     "fetch_k": 20,  # Fetch more candidates
-        #     "lambda_mult": 0.7  # Balance similarity vs diversity
-        # }
 
     )
 
