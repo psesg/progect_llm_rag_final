@@ -113,8 +113,8 @@ def create_new_multi_vector_retriever(vectorstore, all_docs_store):
         # "similarity"
         search_type="mmr",
         search_kwargs={
-            "k": 5,
-            "fetch_k": 20,  # Fetch more candidates
+            "k": 3,
+            "fetch_k": 10,  # Fetch more candidates
             "lambda_mult": 0.7  # Balance similarity vs diversity
         }
         # search_type="mmr",
