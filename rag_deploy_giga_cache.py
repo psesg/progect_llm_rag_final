@@ -186,23 +186,34 @@ def split_image_text_types(docs):
     """
     b64_images = []
     texts = []
+    sources = []
+    num_txt = num_tbl = num_img = 0
+    source_document = 'source_document'
+    page_number = 'page_number'
 
     for dc in docs:
-        #doc = dc.decode()
         doc = pickle.loads(dc)
-        print(f"\t\tdoc = [{doc}]",flush=True)
         if isinstance(doc, Document):
-            doc = doc.page_content
-        if looks_like_base64(doc) and is_image_data(doc):
-            doc = resize_base64_image(doc, size=(1300, 600))
-            b64_images.append(doc)
-        else:
-            texts.append(doc)
-    print (f"\t\tin len(docs) = {len(docs)} out len(texts) = {len(texts)} out len(b64_images) = {len(b64_images)}\n")
+            texts.append(doc.page_content)
+            if doc.metadata.get('src') == 'txt':
+                num_txt += 1
+            if doc.metadata.get('src') == 'tbl':
+                num_tbl += 1
+            if doc.metadata.get('src') == 'img':
+                num_img += 1
+                image_base64 = doc.metadata.get('image_base64')
+                if looks_like_base64(image_base64) and is_image_data(image_base64):
+                    image_base64 = resize_base64_image(image_base64, size=(1300, 600))
+                    b64_images.append(image_base64)
+            if source_document in doc.metadata and page_number in doc.metadata:
+                sources.append(f'файл: {str(doc.metadata.get(source_document))} '
+                               f'страница: {str(doc.metadata.get(page_number))} ')
+
+    print (f"\t\tnum_txt = {num_txt} num_tbl = {num_tbl} num_img = {num_img}")
     # for d in texts:
     #     print(f'\t\trd = [{d}]')
 
-    return {"images": b64_images, "texts": texts}
+    return {"images": b64_images, "texts": texts, "sources": sources}
 
 
 def split_image_text_types_worag(docs):
@@ -232,16 +243,18 @@ def img_prompt_func(data_dict):
     Список сообщений для отправки модели.
     """
     formatted_texts = "\n".join(data_dict["context"]["texts"])
+    formatted_sources = "\n".join(data_dict["context"]["sources"])
     messages = []
 
-    # Добавляем изображения в сообщения, если они присутствуют
-    if data_dict["context"]["images"]:
-        for image in data_dict["context"]["images"]:
-            image_message = {
-                "type": "image_url",
-                "image_url": {"url": f"data:image/jpeg;base64,{image}"},
-            }
-            messages.append(image_message)
+    # для GigaChat формат загрузки файлов другой и в базе документов уже описанные изображения - поэтому не грузим
+    # # Добавляем изображения в сообщения, если они присутствуют
+    # if data_dict["context"]["images"]:
+    #     for image in data_dict["context"]["images"]:
+    #         image_message = {
+    #             "type": "image_url",
+    #             "image_url": {"url": f"data:image/jpeg;base64,{image}"},
+    #         }
+    #         messages.append(image_message)
 
     # Формируем текстовое сообщение с вопросом пользователя и текстовыми данными
     text_message = {
@@ -251,6 +264,7 @@ def img_prompt_func(data_dict):
             f"Ты — эксперт и аналитик, выдающий ответ/заключение по предоставленной тебе в запросе информации в виде "
             f"текста, таблиц, изображений. Используй только предоставленную информацию, не додумывай свою.\n\n"
             f"При выявлении противоречий или инсайтов - обрати на это внимание в своем ответе/заключении. "
+            f"В конце ответа обязательно укажи источники информации в таком формате: Источники информации: {formatted_sources}\n\n "
             f"Вопрос пользователя далее: {data_dict['question']}\n\n"
             f"Текст и/или таблицы далее: {formatted_texts}\n\n"
         ),
@@ -422,18 +436,20 @@ chain_multimodal_worag = create_chain_multimodal_worag()
 #          " источников энергии и каковы основные тезисы реферата?")
 # query = "Что говорится в отчете Сбера о кредитах по амортизированной и справедливой стоимости на конец 2022 и 2023 года?"
 
-query = ("О чем страница отчета Сбера, где изображена женщина-велосипедист в защитном шлеме и очках на фоне размытого пейзажа?"
-         " Перечисли основные темы. Существуют ли на странице оформительские ошибки и если есть, то опиши их суть.")
-print(f"\t\tquery=[{query}]")
-
-docs = retriever_multi_vector_img.get_relevant_documents(query, limit=6)
-print(f'\t\tget_relevant_documents len(docs) = {len(docs)})')
+# query = ("О чем страница отчета Сбера, где изображена женщина-велосипедист в защитном шлеме и очках на фоне размытого пейзажа?"
+#          " Перечисли основные темы. Существуют ли на странице оформительские ошибки и если есть, то опиши их суть.")
+# print(f"\t\tquery=[{query}]")
+#
+# docs = retriever_multi_vector_img.get_relevant_documents(query, limit=6)
+# print(f'\t\tget_relevant_documents len(docs) = {len(docs)})')
 # for d in docs:
-#     print(f'\t\trd = [{d.decode()}]')
+#     dc = pickle.loads(d)
+#     print(f'\t\tsrc = [{dc.metadata.get("src")}] page_content = [{dc.page_content}]')
+#
+# resp = chain_multimodal_rag.invoke(query)
+# print(f'\n\t\tLLM resp = [{resp}]')
 
-resp = chain_multimodal_rag.invoke(query)
-print(f'\n\t\tLLM resp = [{resp}]')
-exit(0)
+# exit(0)
 
 ########################################################################################################################
 # начало отрисовки WEB-морды работа с LLM с RAG
@@ -451,9 +467,9 @@ if "rag_mode" in st.session_state:
     st.session_state["rag_mode"] = rag_mode
 
 if rag_mode:
-    st.title(":red[GPT]+:green[RAG]+:blue[Streamlit]:red[=Great!]:smiley:")
+    st.title(":red[GigaChat]+:green[RAG]+:blue[Streamlit]:red[=Great!]:smiley:")
 else:
-    st.title(":red[GPT]+:blue[Streamlit]:red[=Good]:confused:")
+    st.title(":red[GigaChat]+:blue[Streamlit]:red[=Good]:confused:")
 
 st.write("**Cource: :blue[LLM's - from architecture to building multimodal systems]**")
 st.write("**2025.09.22 Panarin S.E. - project :green[Multimodal RAG system]**")
