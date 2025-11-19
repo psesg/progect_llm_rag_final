@@ -794,11 +794,6 @@ if  len(params) == 0 or '-make_vec_doc' in params:
     print(f"\t\t\tcreate a list of docs with IDs...")
     all_id_docs = []
     for i, item in enumerate(all_docs):
-        # new_item = {}
-        # for key, value in item.items():
-        #     new_item.update({key: value})
-            # if isinstance(value, str):
-            #     new_item.update({key: value.encode()})
         all_id_docs.append((all_indexes[i], pickle.dumps(item),))
 
     with open(all_id_docs_pkl, 'wb') as outp:
@@ -889,6 +884,23 @@ if  len(params) == 0 or '-get_stat' in params:
         with open(image_desc_base64_pkl, 'rb') as inp:
             image_desc_base64 = pickle.load(inp)
 
+    # all_vector_docs_pkl
+    if not os.path.exists(all_vector_docs_pkl):
+        print(f"\t\tfile not exists:{all_vector_docs_pkl}")
+        exit(2)
+    else:
+        print(f"\t\tfile - ok: {all_vector_docs_pkl}")
+        with open(all_vector_docs_pkl, 'rb') as inp:
+            all_vector_docs = pickle.load(inp)
+
+    # all_id_docs_pkl
+    if not os.path.exists(all_id_docs_pkl):
+        print(f"\t\tfile not exists:{all_id_docs_pkl}")
+        exit(2)
+    else:
+        print(f"\t\tfile - ok: {all_id_docs_pkl}")
+        with open(all_id_docs_pkl, 'rb') as inp:
+            all_id_docs = pickle.load(inp)
 
     # печать сэмплов данных
     n_samples = 5
@@ -938,7 +950,24 @@ if  len(params) == 0 or '-get_stat' in params:
                     if key != 'image_base64':
                         print(f"\t\t\t{key}: {value}")
                     else:
-                        print(f"\t\t\t{key}: [..]")
+                        print(f"\t\t\t{key}: [...]")
+
+    if len(all_vector_docs) > 0:
+            print(f"\t\tlen(all_vector_docs)={len(all_vector_docs)}")
+            for i in range(n_samples):
+                for key, value in all_vector_docs[i].metadata.items():
+                    print(f"\t\t\t{key}: {value}")
+
+    if len(all_id_docs) > 0:
+            print(f"\t\tlen(all_id_docs)={len(all_id_docs)}")
+            for i in range(n_samples):
+                print(f"\t\t\tid = {all_id_docs[i][0]}")
+                for key, value in pickle.loads(all_id_docs[i][1]).metadata.items():
+                    if key != 'image_base64':
+                        print(f"\t\t\t{key}: {value}")
+                    else:
+                        print(f"\t\t\t{key}: [...]")
+
 
     datetime_finish = datetime.datetime.now()
     delta_sec = date_diff_in_seconds(datetime_finish, start_datetime)
