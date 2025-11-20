@@ -22,6 +22,7 @@ import logging
 from giga_util import get_giga_credentials, get_giga_url_access_mode, get_giga_token_access
 from langchain_gigachat.embeddings.gigachat import GigaChatEmbeddings
 from langchain_gigachat.chat_models import GigaChat
+from rank_bm25 import BM25Okapi
 
 if platform.system() == "Linux": # or platform.system() == "Darwin"
     # next lines for fix streamlit: Your system has an unsupported version of sqlite3.
@@ -108,16 +109,19 @@ def create_new_multi_vector_retriever(vectorstore, all_docs_store):
         vectorstore=vectorstore,
         docstore=all_docs_store,
         id_key=id_key,
+
         # search_type="similarity_score_threshold",
         # search_kwargs={"score_threshold": 0.5, # Only return docs with similarity >= 0.5
         #         "k": 10  # Max number to consider}
+
         # "similarity"
-        search_type="mmr",
-        search_kwargs={
-            "k": 3,
-            "fetch_k": 10,  # Fetch more candidates
-            "lambda_mult": 0.7  # Balance similarity vs diversity
-        }
+
+        # search_type="mmr",
+        # search_kwargs={
+        #     "k": 3,
+        #     "fetch_k": 10,  # Fetch more candidates
+        #     "lambda_mult": 0.7  # Balance similarity vs diversity
+        # }
 
     )
 
@@ -224,6 +228,14 @@ def split_image_text_types(docs):
     # for d in texts:
     #     print(f'\t\trd = [{d}]')
 
+    # rerank now
+    tokenized_corpus = [doc.split(" ") for doc in texts]
+    bm25 = BM25Okapi(tokenized_corpus)
+    query = "Что написано в отчетe в годовом отчете Сбера за 2023 год на странице, где изображена женщина-велосипедист в защитном шлеме и очках на фоне размытого пейзажа и какой текст содержится, в правой части слайда - перечисли темы."
+    tokenized_query = query.split(" ")
+    reranked_text = bm25.get_top_n(tokenized_query, texts, n=1)
+    print(f"\t\treranked_text = [{reranked_text}]")
+
     return {"images": b64_images, "texts": texts, "sources": sources}
 
 
@@ -281,7 +293,7 @@ def img_prompt_func(data_dict):
         ),
     }
     messages.append(text_message)
-    print(f'formatted_sources = [{formatted_sources}]', flush=True)
+    print(f'formatted_sources:\n{formatted_sources}', flush=True)
     return [HumanMessage(content=messages)]
 
 
