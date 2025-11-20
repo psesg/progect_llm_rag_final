@@ -46,6 +46,7 @@ warnings.filterwarnings('ignore', category=DeprecationWarning)
 
 model_giga = "GigaChat-2-Max" # "GigaChat-2-Pro" "GigaChat-2-Max"
 model_emb = "Embeddings" # EmbeddingsGigaR  Embeddings
+query_llm = ''
 
 credentials = get_giga_credentials()
 if credentials == '':
@@ -118,8 +119,8 @@ def create_new_multi_vector_retriever(vectorstore, all_docs_store):
 
         # search_type="mmr",
         # search_kwargs={
-        #     "k": 3,
-        #     "fetch_k": 10,  # Fetch more candidates
+        #     "k": 10,
+        #     "fetch_k": 50,  # Fetch more candidates
         #     "lambda_mult": 0.7  # Balance similarity vs diversity
         # }
 
@@ -199,12 +200,18 @@ def split_image_text_types(docs):
     Возвращает:
     Словарь с двумя списками: изображения и тексты.
     """
-    b64_images = []
+
     texts = []
+    b64_images = []
     sources = []
+    out_texts = []
+    out_b64_images = []
+    out_sources = []
     num_txt = num_tbl = num_img = 0
     source_document = 'source_document'
     page_number = 'page_number'
+    list_out_tuples = []
+    image_base64 = ''
 
     for dc in docs:
         doc = pickle.loads(dc)
@@ -221,8 +228,9 @@ def split_image_text_types(docs):
                     image_base64 = resize_base64_image(image_base64, size=(1300, 600))
                     b64_images.append(image_base64)
             if source_document in doc.metadata and page_number in doc.metadata:
-                sources.append(f'файл: {str(doc.metadata.get(source_document))} '
-                               f'страница: {str(doc.metadata.get(page_number))} ')
+                src = f'файл: {str(doc.metadata.get(source_document))} страница: {str(doc.metadata.get(page_number))}'
+                sources.append(src)
+            list_out_tuples.append((doc.page_content, image_base64, src))
 
     print (f"\t\tnum_txt = {num_txt} num_tbl = {num_tbl} num_img = {num_img}")
     # for d in texts:
@@ -231,12 +239,16 @@ def split_image_text_types(docs):
     # rerank now
     tokenized_corpus = [doc.split(" ") for doc in texts]
     bm25 = BM25Okapi(tokenized_corpus)
-    query = "Что написано в отчетe в годовом отчете Сбера за 2023 год на странице, где изображена женщина-велосипедист в защитном шлеме и очках на фоне размытого пейзажа и какой текст содержится, в правой части слайда - перечисли темы."
-    tokenized_query = query.split(" ")
-    reranked_text = bm25.get_top_n(tokenized_query, texts, n=1)
-    print(f"\t\treranked_text = [{reranked_text}]")
-
-    return {"images": b64_images, "texts": texts, "sources": sources}
+    tokenized_query = query_llm.split(" ")
+    reranked_text = bm25.get_top_n(tokenized_query, texts, n=5)
+    for tpl in list_out_tuples:
+        for txt in reranked_text:
+            if txt == tpl[0]:
+                out_texts.append(tpl[0])
+                out_b64_images.append(tpl[1])
+                out_sources.append(tpl[2])
+    print(f"\t\tlen out RAG:{len(texts)} -> out Rerank:{len(out_texts)}")
+    return {"images": out_b64_images, "texts": out_texts, "sources": out_sources}
 
 
 def split_image_text_types_worag(docs):
@@ -526,6 +538,7 @@ if prompt := st.chat_input(hello,
                            file_type=["jpg"]):
     # Add user message to chat history
     st.session_state.messages.append({"role": "user", "content": prompt.text})
+    query_llm = prompt.text
     # Display user message in chat message container
     with st.chat_message("user"):
         st.markdown(prompt.text)
