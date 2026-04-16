@@ -69,7 +69,7 @@ print(f"{gl_start_datetime.strftime('%Y.%m.%d %H:%M:%S')} ->: begin preprocessin
 
 print(f"getting connection parameters to GigaChat")
 
-model_giga = "GigaChat-2-Max" # "GigaChat-2-Pro"
+model_giga = "GigaChat-2-Max" # "GigaChat-2-Pro" "GigaChat-3-Ultra"
 # GigaChat-2-Max
 # GigaChat-Max
 # GigaChat-Pro
